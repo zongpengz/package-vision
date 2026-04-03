@@ -9,6 +9,8 @@ interface PackageJsonShape {
 
 export class PackageJsonService {
   getWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
+    // 当前先取第一个工作区根目录。
+    // 多工作区/monorepo 后面可以在这里继续扩展。
     return vscode.workspace.workspaceFolders?.[0];
   }
 
@@ -42,6 +44,8 @@ export class PackageJsonService {
     }
 
     try {
+      // 这里故意使用 VS Code 的文件系统 API，而不是 Node 的 fs。
+      // 这样代码风格更贴近扩展开发场景，也更容易后续适配 VS Code 的资源模型。
       const raw = await vscode.workspace.fs.readFile(packageJsonUri);
       const text = new TextDecoder("utf-8").decode(raw);
       const packageJson = JSON.parse(text) as PackageJsonShape;
@@ -65,6 +69,7 @@ export class PackageJsonService {
     }
 
     return Object.entries(dependencyMap)
+      // 先按名字排序，保证 Tree View 每次渲染的顺序稳定。
       .sort(([leftName], [rightName]) => leftName.localeCompare(rightName))
       .map(([name, declaredVersion]) => ({
         name,

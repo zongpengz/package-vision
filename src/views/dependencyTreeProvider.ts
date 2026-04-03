@@ -8,6 +8,8 @@ import {
 import { PackageJsonService } from "../services/packageJsonService";
 import { RegistryService } from "../services/registryService";
 
+// Tree View 里的每个节点都必须能被 getTreeItem() / getChildren() 识别。
+// 这里把“分组节点、依赖节点、空状态节点”统一成一个联合类型。
 type PackageVisionNode =
   | DependencySectionItem
   | DependencyItem
@@ -38,6 +40,7 @@ export class DependencyTreeProvider
     element?: PackageVisionNode
   ): Promise<PackageVisionNode[]> {
     if (element instanceof DependencySectionItem) {
+      // 当 VS Code 展开一个分组节点时，会再次调用 getChildren(section)。
       return element.dependencies.map(
         (dependency) => new DependencyItem(dependency)
       );
@@ -91,6 +94,7 @@ export class DependencyTreeProvider
       ];
     }
 
+    // 先读本地 package.json，再补充 npm registry 的最新版本信息。
     const enrichedDependencies =
       await this.registryService.enrichDependencies(dependencies);
 
@@ -104,6 +108,7 @@ export class DependencyTreeProvider
 
     return sections
       .map((section) => {
+        // 先在内存中按 section 分组，再分别渲染成 Tree Item。
         const sectionDependencies = dependencies.filter(
           (dependency) => dependency.section === section
         );
@@ -134,6 +139,7 @@ class DependencySectionItem extends vscode.TreeItem {
       (dependency) => dependency.status === "outdated"
     ).length;
 
+    // description 会直接显示在侧边栏右侧，适合放“这个分组里有多少过时依赖”这种摘要信息。
     this.description =
       outdatedCount > 0
         ? `${outdatedCount} outdated / ${dependencies.length}`
@@ -151,6 +157,7 @@ class DependencyItem extends vscode.TreeItem {
   constructor(readonly dependency: DependencyRecord) {
     super(dependency.name, vscode.TreeItemCollapsibleState.None);
 
+    // TreeItem 的 description 空间比较有限，所以这里只放一行最关键的信息。
     this.description = formatDependencyDescription(dependency);
     this.contextValue = "dependency";
     this.tooltip = new vscode.MarkdownString(
@@ -216,6 +223,7 @@ function formatDependencyStatus(status: DependencyStatus): string {
 }
 
 function getDependencyIcon(status: DependencyStatus): vscode.ThemeIcon {
+  // 这里优先使用 VS Code 内置图标，能天然继承编辑器主题风格。
   switch (status) {
     case "upToDate":
       return new vscode.ThemeIcon("check");

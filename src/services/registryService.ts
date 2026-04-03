@@ -21,11 +21,14 @@ const REQUEST_TIMEOUT_MS = 4000;
 const MAX_CONCURRENT_REQUESTS = 8;
 
 export class RegistryService {
+  // 版本信息短时间变化不频繁，做一个内存缓存可以避免每次展开视图都重新请求全部依赖。
   private readonly latestVersionCache = new Map<string, CachedVersion>();
 
   async enrichDependencies(
     dependencies: DependencyRecord[]
   ): Promise<DependencyRecord[]> {
+    // 这里保留原始依赖结构，只额外补充 latestVersion/status 等信息，
+    // 这样视图层不需要关心 registry 的请求细节。
     return mapWithConcurrency(
       dependencies,
       MAX_CONCURRENT_REQUESTS,
@@ -38,6 +41,8 @@ export class RegistryService {
   ): Promise<DependencyRecord> {
     try {
       const latestVersion = await this.getLatestVersion(dependency.name);
+      // declaredVersion 可能是 ^1.2.3、~1.2.3、workspace:* 等形式，
+      // 所以这里单独做一次 semver 判断，而不是直接比较字符串。
       const status = determineDependencyStatus(
         dependency.declaredVersion,
         latestVersion
@@ -69,6 +74,7 @@ export class RegistryService {
       return cached.latestVersion;
     }
 
+    // npm registry 会在 dist-tags.latest 里给出当前默认稳定版本。
     const metadata = await this.fetchRegistryMetadata(packageName);
     const latestVersion = metadata["dist-tags"]?.latest;
     if (!latestVersion) {
@@ -89,6 +95,8 @@ export class RegistryService {
     const packageUrl = `${REGISTRY_BASE_URL}/${encodeURIComponent(packageName)}`;
 
     return new Promise<RegistryMetadata>((resolve, reject) => {
+      // 这里直接发 HTTPS 请求，而不是调用 npm outdated，
+      // 目的是拿到更稳定的结构化数据，也避免解析终端文本输出。
       const request = https.get(
         packageUrl,
         {
@@ -144,6 +152,8 @@ function determineDependencyStatus(
 ): DependencyStatus {
   const normalizedRange = normalizeSemverRange(declaredVersion);
   if (!normalizedRange) {
+    // 像 git URL、workspace:* 这类版本声明不一定能被 semver 正常理解，
+    // 这时我们保留 latestVersion，但把状态标成 unknown。
     return "unknown";
   }
 
@@ -162,6 +172,8 @@ async function mapWithConcurrency<TInput, TOutput>(
   concurrency: number,
   mapper: (item: TInput, index: number) => Promise<TOutput>
 ): Promise<TOutput[]> {
+  // 一个非常轻量的并发控制器：
+  // 同一时刻只让固定数量的请求并行执行，避免依赖过多时瞬间打爆网络请求。
   const results = new Array<TOutput>(items.length);
   let currentIndex = 0;
 
