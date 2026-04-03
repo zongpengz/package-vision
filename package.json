@@ -5,6 +5,14 @@
   "version": "0.0.1",
   "publisher": "zongpengz",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zongpengz/package-vision.git"
+  },
+  "homepage": "https://github.com/zongpengz/package-vision#readme",
+  "bugs": {
+    "url": "https://github.com/zongpengz/package-vision/issues"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -160,7 +168,7 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "^24.6.0",
     "@types/semver": "^7.7.1",
-    "@types/vscode": "^1.105.0",
+    "@types/vscode": "^1.90.0",
     "@vscode/test-electron": "^2.5.2",
     "mocha": "^11.7.4",
     "tsx": "^4.20.6",
