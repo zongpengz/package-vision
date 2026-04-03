@@ -69,6 +69,39 @@ export class PackageJsonService {
     return packageJson?.packageManager;
   }
 
+  async readDependencyDeclaration(
+    packageManifest: PackageManifestRecord,
+    dependencyName: string,
+    section: DependencyRecord["section"]
+  ): Promise<string | undefined> {
+    const packageJson = await this.readPackageJson(
+      vscode.Uri.file(packageManifest.packageJsonPath)
+    );
+
+    return packageJson?.[section]?.[dependencyName];
+  }
+
+  async updateDependencyDeclaration(
+    packageManifest: PackageManifestRecord,
+    dependencyName: string,
+    section: DependencyRecord["section"],
+    versionRange: string
+  ): Promise<void> {
+    const packageJsonUri = vscode.Uri.file(packageManifest.packageJsonPath);
+    const packageJson = await this.readPackageJson(packageJsonUri);
+    if (!packageJson) {
+      throw new Error(`Unable to read package.json: ${packageManifest.packageJsonPath}`);
+    }
+
+    const sectionEntries = {
+      ...(packageJson[section] ?? {})
+    };
+    sectionEntries[dependencyName] = versionRange;
+    packageJson[section] = sectionEntries;
+
+    await this.writePackageJson(packageJsonUri, packageJson);
+  }
+
   private async loadPackageManifest(
     workspaceFolder: vscode.WorkspaceFolder,
     packageJsonUri: vscode.Uri
@@ -100,5 +133,17 @@ export class PackageJsonService {
       const message = error instanceof Error ? error.message : "Unknown error";
       throw new Error(`Unable to read package.json: ${message}`);
     }
+  }
+
+  private async writePackageJson(
+    packageJsonUri: vscode.Uri,
+    packageJson: PackageJsonShape
+  ): Promise<void> {
+    // 这里先用统一的 2 空格缩进写回文件，优先保证实现简单、稳定、便于学习。
+    const text = `${JSON.stringify(packageJson, null, 2)}\n`;
+    await vscode.workspace.fs.writeFile(
+      packageJsonUri,
+      new TextEncoder().encode(text)
+    );
   }
 }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  buildLockfileSyncCommand,
   buildUpgradeCommand,
   createPackageManagerExecutionContext,
   walkUpDirectories
@@ -200,6 +201,60 @@ test("buildUpgradeCommand runs bun upgrades in the package directory", () => {
 
   assert.deepEqual(command.args, ["update", "react", "--latest"]);
   assert.equal(command.cwdPath, "/repo/packages/api");
+});
+
+test("buildLockfileSyncCommand targets the current npm workspace package", () => {
+  const context = createPackageManagerExecutionContext(
+    {
+      packageManager: "npm",
+      managerRootPath: "/repo"
+    },
+    "/repo/packages/web"
+  );
+
+  const command = buildLockfileSyncCommand({
+    executionContext: context,
+    platform: "darwin"
+  });
+
+  assert.deepEqual(command.args, ["install", "--workspace", "packages/web"]);
+  assert.equal(command.cwdPath, "/repo");
+});
+
+test("buildLockfileSyncCommand targets the filtered pnpm workspace package", () => {
+  const context = createPackageManagerExecutionContext(
+    {
+      packageManager: "pnpm",
+      managerRootPath: "/repo"
+    },
+    "/repo/packages/web"
+  );
+
+  const command = buildLockfileSyncCommand({
+    executionContext: context,
+    platform: "darwin"
+  });
+
+  assert.deepEqual(command.args, ["--filter", "./packages/web", "install"]);
+  assert.equal(command.cwdPath, "/repo");
+});
+
+test("buildLockfileSyncCommand uses yarn install from the manager root", () => {
+  const context = createPackageManagerExecutionContext(
+    {
+      packageManager: "yarn",
+      managerRootPath: "/repo"
+    },
+    "/repo/packages/web"
+  );
+
+  const command = buildLockfileSyncCommand({
+    executionContext: context,
+    platform: "darwin"
+  });
+
+  assert.deepEqual(command.args, ["install"]);
+  assert.equal(command.cwdPath, "/repo");
 });
 
 test("walkUpDirectories includes the starting package and workspace root", () => {

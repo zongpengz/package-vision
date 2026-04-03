@@ -5,22 +5,26 @@ import { promisify } from "node:util";
 
 import * as vscode from "vscode";
 
+import { getUpgradeVersionRangeStyle } from "../configuration";
 import { DependencyRecord } from "../models/dependency";
 import { PackageJsonService } from "./packageJsonService";
 import {
   PackageManagerDetectionResult,
   PackageManagerExecutionContext,
   YarnVariant,
+  buildLockfileSyncCommand,
   buildUpgradeCommand,
   createPackageManagerExecutionContext,
   walkUpDirectories
 } from "./packageManagerCore";
+import { resolveVersionRangeStyle } from "./versionRangeUtils";
 
 const execFileAsync = promisify(execFile);
 
 interface UpgradeResult {
   commandLine: string;
   packageManager: PackageManagerExecutionContext["packageManager"];
+  savedVersionRange: string;
 }
 
 export class PackageManagerService implements vscode.Disposable {
@@ -55,6 +59,14 @@ export class PackageManagerService implements vscode.Disposable {
       packageManager === "yarn"
         ? await this.detectYarnVariant(executionContext)
         : undefined;
+    const versionRangeStyle = getUpgradeVersionRangeStyle(
+      vscode.Uri.file(dependency.packageManifest.packageJsonPath)
+    );
+    const resolvedVersionRange = resolveVersionRangeStyle(
+      versionRangeStyle,
+      dependency.declaredVersion,
+      dependency.latestVersion ?? dependency.declaredVersion
+    );
     const { executable, args, cwdPath } = buildUpgradeCommand({
       dependency,
       executionContext,
@@ -81,11 +93,20 @@ export class PackageManagerService implements vscode.Disposable {
         this.appendRawOutput(stderr);
       }
 
+      const savedVersionRange = await this.ensureConfiguredVersionRange(
+        dependency,
+        executionContext,
+        yarnVariant,
+        resolvedVersionRange.versionRange,
+        resolvedVersionRange.usedFallbackStyle
+      );
+
       this.appendLogLine(`Upgrade completed for ${dependency.name}.`);
 
       return {
         commandLine,
-        packageManager
+        packageManager,
+        savedVersionRange
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
@@ -116,6 +137,68 @@ export class PackageManagerService implements vscode.Disposable {
     for (const line of trimmed.split(/\r?\n/)) {
       this.outputChannel.appendLine(line);
     }
+  }
+
+  private async ensureConfiguredVersionRange(
+    dependency: DependencyRecord,
+    executionContext: PackageManagerExecutionContext,
+    yarnVariant: YarnVariant | undefined,
+    desiredVersionRange: string,
+    usedFallbackStyle: boolean
+  ): Promise<string> {
+    const currentDeclaration =
+      await this.packageJsonService.readDependencyDeclaration(
+        dependency.packageManifest,
+        dependency.name,
+        dependency.section
+      );
+
+    if (currentDeclaration === desiredVersionRange) {
+      return currentDeclaration;
+    }
+
+    if (usedFallbackStyle) {
+      this.appendLogLine(
+        `Package Vision could not preserve the original range style for ${dependency.name}, so it fell back to a caret range.`
+      );
+    }
+
+    this.appendLogLine(
+      `Rewriting ${dependency.name} in package.json to ${desiredVersionRange}.`
+    );
+
+    await this.packageJsonService.updateDependencyDeclaration(
+      dependency.packageManifest,
+      dependency.name,
+      dependency.section,
+      desiredVersionRange
+    );
+
+    const syncCommand = buildLockfileSyncCommand({
+      executionContext
+    });
+    this.appendLogLine(
+      `Syncing lockfile with command: ${[syncCommand.executable, ...syncCommand.args].join(" ")}`
+    );
+
+    const { stdout, stderr } = await execFileAsync(
+      syncCommand.executable,
+      syncCommand.args,
+      {
+        cwd: syncCommand.cwdPath,
+        maxBuffer: 10 * 1024 * 1024
+      }
+    );
+
+    if (stdout) {
+      this.appendRawOutput(stdout);
+    }
+
+    if (stderr) {
+      this.appendRawOutput(stderr);
+    }
+
+    return desiredVersionRange;
   }
 
   private async detectPackageManager(

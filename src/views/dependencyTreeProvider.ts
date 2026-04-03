@@ -392,19 +392,34 @@ function getDependencyIcon(
 ): vscode.ThemeIcon {
   // 这里优先使用 VS Code 内置图标，能天然继承编辑器主题风格。
   if (isUpgrading) {
-    return new vscode.ThemeIcon("sync~spin");
+    return new vscode.ThemeIcon(
+      "sync~spin",
+      new vscode.ThemeColor("progressBar.background")
+    );
   }
 
   switch (status) {
     case "upToDate":
-      return new vscode.ThemeIcon("check");
+      return new vscode.ThemeIcon(
+        "check",
+        new vscode.ThemeColor("testing.iconPassed")
+      );
     case "outdated":
-      return new vscode.ThemeIcon("warning");
+      return new vscode.ThemeIcon(
+        "warning",
+        new vscode.ThemeColor("problemsWarningIcon.foreground")
+      );
     case "error":
-      return new vscode.ThemeIcon("error");
+      return new vscode.ThemeIcon(
+        "error",
+        new vscode.ThemeColor("problemsErrorIcon.foreground")
+      );
     case "unknown":
     default:
-      return new vscode.ThemeIcon("package");
+      return new vscode.ThemeIcon(
+        "package",
+        new vscode.ThemeColor("foreground")
+      );
   }
 }
 

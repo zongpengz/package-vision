@@ -101,6 +101,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
 
         treeProvider.startUpgrade(dependency);
+        let upgradeStateCleared = false;
 
         try {
           const result = await vscode.window.withProgress(
@@ -125,9 +126,10 @@ export function activate(context: vscode.ExtensionContext): void {
             }
           );
 
-          treeProvider.refresh();
+          treeProvider.finishUpgrade(dependency);
+          upgradeStateCleared = true;
           const choice = await vscode.window.showInformationMessage(
-            `Upgraded ${dependency.name} to ${dependency.latestVersion} using ${result.packageManager}.`,
+            `Upgraded ${dependency.name} to ${dependency.latestVersion} using ${result.packageManager}. Saved as ${result.savedVersionRange}.`,
             "Show Output",
             "Open package.json"
           );
@@ -140,6 +142,8 @@ export function activate(context: vscode.ExtensionContext): void {
             await vscode.commands.executeCommand("packageVision.openPackageJson");
           }
         } catch (error) {
+          treeProvider.finishUpgrade(dependency);
+          upgradeStateCleared = true;
           const message = error instanceof Error ? error.message : "Unknown error";
           const choice = await vscode.window.showErrorMessage(
             `Failed to upgrade ${dependency.name}: ${message}`,
@@ -158,7 +162,9 @@ export function activate(context: vscode.ExtensionContext): void {
             );
           }
         } finally {
-          treeProvider.finishUpgrade(dependency);
+          if (!upgradeStateCleared) {
+            treeProvider.finishUpgrade(dependency);
+          }
         }
       }
     )

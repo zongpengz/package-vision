@@ -7,6 +7,7 @@ import {
 } from "../models/dependency";
 
 export interface PackageJsonShape {
+  [key: string]: unknown;
   packageManager?: string;
   name?: string;
   dependencies?: Record<string, string>;

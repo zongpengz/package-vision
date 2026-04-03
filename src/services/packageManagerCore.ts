@@ -1,6 +1,7 @@
 import * as path from "node:path";
 
 import { DependencyRecord } from "../models/dependency";
+import { SavedVersionRangeStyle, VersionRangeStyle } from "./versionRangeUtils";
 
 export type PackageManagerKind = "npm" | "pnpm" | "yarn" | "bun";
 export type YarnVariant = "classic" | "modern";
@@ -30,6 +31,11 @@ interface BuildUpgradeCommandInput {
   dependency: DependencyRecord;
   executionContext: PackageManagerExecutionContext;
   yarnVariant?: YarnVariant;
+  platform?: NodeJS.Platform;
+}
+
+interface BuildLockfileSyncCommandInput {
+  executionContext: PackageManagerExecutionContext;
   platform?: NodeJS.Platform;
 }
 
@@ -70,6 +76,21 @@ export function buildUpgradeCommand(
       return buildYarnUpgradeCommand(input);
     case "bun":
       return buildBunUpgradeCommand(input);
+  }
+}
+
+export function buildLockfileSyncCommand(
+  input: BuildLockfileSyncCommandInput
+): UpgradeCommand {
+  switch (input.executionContext.packageManager) {
+    case "npm":
+      return buildNpmInstallCommand(input);
+    case "pnpm":
+      return buildPnpmInstallCommand(input);
+    case "yarn":
+      return buildYarnInstallCommand(input);
+    case "bun":
+      return buildBunInstallCommand(input);
   }
 }
 
@@ -244,6 +265,60 @@ function buildBunUpgradeCommand({
   return {
     executable: platform === "win32" ? "bun.exe" : "bun",
     args: ["update", dependency.name, "--latest"],
+    cwdPath: executionContext.packageDirPath
+  };
+}
+
+function buildNpmInstallCommand({
+  executionContext,
+  platform
+}: BuildLockfileSyncCommandInput): UpgradeCommand {
+  const executable = getExecutable("npm", platform);
+  const args = executionContext.isMonorepoPackage
+    ? ["install", "--workspace", executionContext.workspaceTarget]
+    : ["install"];
+
+  return {
+    executable,
+    args,
+    cwdPath: executionContext.commandCwdPath
+  };
+}
+
+function buildPnpmInstallCommand({
+  executionContext,
+  platform
+}: BuildLockfileSyncCommandInput): UpgradeCommand {
+  const executable = getExecutable("pnpm", platform);
+  const args = executionContext.isMonorepoPackage
+    ? ["--filter", executionContext.workspaceFilter, "install"]
+    : ["install"];
+
+  return {
+    executable,
+    args,
+    cwdPath: executionContext.commandCwdPath
+  };
+}
+
+function buildYarnInstallCommand({
+  executionContext,
+  platform
+}: BuildLockfileSyncCommandInput): UpgradeCommand {
+  return {
+    executable: getExecutable("yarn", platform),
+    args: ["install"],
+    cwdPath: executionContext.commandCwdPath
+  };
+}
+
+function buildBunInstallCommand({
+  executionContext,
+  platform
+}: BuildLockfileSyncCommandInput): UpgradeCommand {
+  return {
+    executable: platform === "win32" ? "bun.exe" : "bun",
+    args: ["install"],
     cwdPath: executionContext.packageDirPath
   };
 }

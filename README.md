@@ -96,6 +96,21 @@ npm run check
 
 这样做的好处是测试不依赖 VS Code 扩展宿主，执行更快，也更适合当前阶段持续迭代。
 
+## 设置项
+
+当前已经提供一个可配置项：
+
+- `packageVision.upgrade.versionRangeStyle`
+
+可选值：
+
+- `preserve`：尽量保留当前依赖原本的写法，例如 `^`、`~` 或 exact
+- `caret`：统一写成 `^1.2.3`
+- `tilde`：统一写成 `~1.2.3`
+- `exact`：统一写成 `1.2.3`
+
+这个设置是按工作区资源生效的，适合不同项目使用不同的版本策略。
+
 启动后你会看到：
 
 - 左侧 Activity Bar 出现 `Package Vision`

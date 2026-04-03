@@ -98,6 +98,29 @@
           "group": "navigation"
         }
       ]
+    },
+    "configuration": {
+      "title": "Package Vision",
+      "properties": {
+        "packageVision.upgrade.versionRangeStyle": {
+          "type": "string",
+          "default": "preserve",
+          "scope": "resource",
+          "enum": [
+            "preserve",
+            "caret",
+            "tilde",
+            "exact"
+          ],
+          "enumDescriptions": [
+            "Keep the current dependency style when possible, such as ^, ~, or exact.",
+            "Always save upgraded dependencies with a ^ prefix.",
+            "Always save upgraded dependencies with a ~ prefix.",
+            "Always save upgraded dependencies as an exact version."
+          ],
+          "markdownDescription": "Controls how Package Vision writes upgraded dependency ranges back to `package.json`."
+        }
+      }
     }
   },
   "scripts": {
