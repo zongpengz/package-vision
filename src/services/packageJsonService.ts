@@ -2,18 +2,12 @@ import * as path from "node:path";
 
 import * as vscode from "vscode";
 
+import { DependencyRecord, PackageManifestRecord } from "../models/dependency";
 import {
-  DependencyRecord,
-  DependencySection,
-  PackageManifestRecord
-} from "../models/dependency";
-
-interface PackageJsonShape {
-  packageManager?: string;
-  name?: string;
-  dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
-}
+  PackageJsonShape,
+  buildPackageManifestRecord,
+  toDependencyRecords
+} from "./packageManifestUtils";
 
 export class PackageJsonService {
   getWorkspaceFolders(): readonly vscode.WorkspaceFolder[] {
@@ -32,8 +26,8 @@ export class PackageJsonService {
   async loadDependencies(): Promise<DependencyRecord[]> {
     const manifests = await this.loadPackageManifests();
     return manifests.flatMap((manifest) => [
-      ...this.toDependencyRecords(manifest, "dependencies"),
-      ...this.toDependencyRecords(manifest, "devDependencies")
+      ...toDependencyRecords(manifest, "dependencies"),
+      ...toDependencyRecords(manifest, "devDependencies")
     ]);
   }
 
@@ -75,30 +69,6 @@ export class PackageJsonService {
     return packageJson?.packageManager;
   }
 
-  private toDependencyRecords(
-    manifest: PackageManifestRecord,
-    section: DependencySection
-  ): DependencyRecord[] {
-    const dependencyMap =
-      section === "dependencies"
-        ? manifest.dependencies
-        : manifest.devDependencies;
-    if (!dependencyMap) {
-      return [];
-    }
-
-    return Object.entries(dependencyMap)
-      // 先按名字排序，保证 Tree View 每次渲染的顺序稳定。
-      .sort(([leftName], [rightName]) => leftName.localeCompare(rightName))
-      .map(([name, declaredVersion]) => ({
-        name,
-        section,
-        declaredVersion,
-        packageManifest: manifest,
-        status: "unknown" as const
-      }));
-  }
-
   private async loadPackageManifest(
     workspaceFolder: vscode.WorkspaceFolder,
     packageJsonUri: vscode.Uri
@@ -108,33 +78,13 @@ export class PackageJsonService {
       throw new Error(`Unable to read package.json: ${packageJsonUri.fsPath}`);
     }
 
-    const relativePackageJsonPath = normalizePath(
-      path.relative(workspaceFolder.uri.fsPath, packageJsonUri.fsPath)
-    );
-    const relativeDirPath = normalizeRelativeDirPath(
-      path.dirname(relativePackageJsonPath)
-    );
-    const packageDirPath = path.dirname(packageJsonUri.fsPath);
-    const displayName =
-      packageJson.name ??
-      (relativeDirPath === "."
-        ? workspaceFolder.name
-        : path.basename(packageDirPath));
-
-    return {
+    return buildPackageManifestRecord({
       id: packageJsonUri.toString(),
       workspaceFolderName: workspaceFolder.name,
-      workspaceFolderUri: workspaceFolder.uri.fsPath,
+      workspaceFolderPath: workspaceFolder.uri.fsPath,
       packageJsonPath: packageJsonUri.fsPath,
-      packageDirPath,
-      packageManagerSpecifier: packageJson.packageManager,
-      packageName: packageJson.name,
-      displayName,
-      relativeDirPath,
-      isWorkspaceRootPackage: relativeDirPath === ".",
-      dependencies: packageJson.dependencies,
-      devDependencies: packageJson.devDependencies
-    };
+      packageJson
+    });
   }
 
   private async readPackageJson(
@@ -151,12 +101,4 @@ export class PackageJsonService {
       throw new Error(`Unable to read package.json: ${message}`);
     }
   }
-}
-
-function normalizeRelativeDirPath(relativeDirPath: string): string {
-  return normalizePath(relativeDirPath || ".");
-}
-
-function normalizePath(filePath: string): string {
-  return filePath.split(path.sep).join("/");
 }

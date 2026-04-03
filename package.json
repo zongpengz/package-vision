@@ -104,12 +104,14 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc --watch -p ./",
-    "check": "npm run compile"
+    "test": "tsx --test tests/**/*.test.ts",
+    "check": "npm run compile && npm run test"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
     "@types/semver": "^7.7.1",
     "@types/vscode": "^1.105.0",
+    "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   },
   "dependencies": {
