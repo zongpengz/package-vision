@@ -79,12 +79,19 @@ package-vision/
     packageManifestUtils.test.ts
     registryUtils.test.ts
     versionRangeUtils.test.ts
+  src/test/
+    runTest.ts
+    suite/
+      extension.integration.test.ts
+    fixtures/
+      monorepo/
   resources/
     package-vision.svg
   docs/
     product-requirements.md
     technical-design.md
     development-workflow.md
+    testing-and-validation.md
 ```
 
 ## 5. 模块职责

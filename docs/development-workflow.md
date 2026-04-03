@@ -13,6 +13,10 @@
 - 从 0 到 1 的实现顺序
 - 当前仓库已经走到哪一步
 
+如果你想看“现在怎么测试、怎么打包、怎么做本地验证”，请配合阅读：
+
+- [测试与验证文档](./testing-and-validation.md)
+
 ## 2. 建议的学习和实现原则
 
 - 每次只解决一个明确问题
@@ -173,6 +177,7 @@ VS Code 扩展开发最常用的调试方式是：
 
 - 执行 `npm run test:integration`
 - 或者在 Run and Debug 里直接使用 `Run Package Vision Tests`
+- 打包前执行 `npm run check:full`
 
 如果修改的是视图声明，有时需要执行：
 
@@ -191,6 +196,7 @@ VS Code 扩展开发最常用的调试方式是：
 7. monorepo / 多 `package.json` 支持完成
 8. 设置项、筛选和测试完成
 9. Extension Host 集成测试完成
+10. 本地 VSIX 打包验证完成
 
 这样回头复盘时，你会非常清楚自己是如何把一个插件做出来的。
 
