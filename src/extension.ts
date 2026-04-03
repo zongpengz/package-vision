@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
+import * as path from "node:path";
 
-import { DependencyRecord } from "./models/dependency";
+import { DependencyRecord, PackageManifestRecord } from "./models/dependency";
 import { PackageManagerService } from "./services/packageManagerService";
 import { PackageJsonService } from "./services/packageJsonService";
 import { RegistryService } from "./services/registryService";
@@ -44,16 +45,20 @@ export function activate(context: vscode.ExtensionContext): void {
       "packageVision.openPackageJson",
       async () => {
         // 这里刻意只处理“工作区根目录”的 package.json，
-        // 这是当前 MVP 的边界，先不扩展到 monorepo。
-        const packageJsonUri = packageJsonService.getPackageJsonUri();
-        if (!packageJsonUri || !(await packageJsonService.hasPackageJson())) {
+        // monorepo 模式下，如果存在多个 package.json，会先让用户选择要打开哪一个。
+        const packageManifest = await resolvePackageManifest(
+          packageJsonService
+        );
+        if (!packageManifest) {
           void vscode.window.showWarningMessage(
-            "No package.json found in the workspace root."
+            "No package.json files found in the workspace."
           );
           return;
         }
 
-        const document = await vscode.workspace.openTextDocument(packageJsonUri);
+        const document = await vscode.workspace.openTextDocument(
+          vscode.Uri.file(packageManifest.packageJsonPath)
+        );
         await vscode.window.showTextDocument(document);
       }
     )
@@ -167,10 +172,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument((document) => {
-      const rootPackageJsonUri = packageJsonService.getPackageJsonUri();
       if (
-        rootPackageJsonUri &&
-        document.uri.toString() === rootPackageJsonUri.toString()
+        document.uri.scheme === "file" &&
+        path.basename(document.uri.fsPath) === "package.json"
       ) {
         // 当用户直接编辑并保存 package.json 时，侧边栏也要同步刷新，
         // 这样插件里的依赖列表不会停留在旧数据。
@@ -208,4 +212,34 @@ function isDependencyRecord(value: unknown): value is DependencyRecord {
     "declaredVersion" in value &&
     "status" in value
   );
+}
+
+async function resolvePackageManifest(
+  packageJsonService: PackageJsonService
+): Promise<PackageManifestRecord | undefined> {
+  const manifests = await packageJsonService.loadPackageManifests();
+  if (manifests.length === 0) {
+    return undefined;
+  }
+
+  if (manifests.length === 1) {
+    return manifests[0];
+  }
+
+  const selection = await vscode.window.showQuickPick(
+    manifests.map((manifest) => ({
+      label: manifest.displayName,
+      description:
+        manifest.relativeDirPath === "."
+          ? "workspace root"
+          : manifest.relativeDirPath,
+      detail: manifest.packageJsonPath,
+      manifest
+    })),
+    {
+      placeHolder: "Select a package.json to open"
+    }
+  );
+
+  return selection?.manifest;
 }

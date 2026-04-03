@@ -1,3 +1,5 @@
+import * as path from "node:path";
+
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -19,6 +21,7 @@ interface UpgradeResult {
 interface UpgradeCommand {
   executable: string;
   args: string[];
+  cwdPath: string;
 }
 
 export class PackageManagerService implements vscode.Disposable {
@@ -32,12 +35,12 @@ export class PackageManagerService implements vscode.Disposable {
   async upgradeDependency(
     dependency: DependencyRecord
   ): Promise<UpgradeResult> {
-    const workspaceFolder = this.packageJsonService.getWorkspaceFolder();
-    if (!workspaceFolder) {
+    const executionContext = await this.resolveExecutionContext(dependency);
+    if (!executionContext) {
       throw new Error("Open a workspace folder before upgrading dependencies.");
     }
 
-    const packageManager = await this.detectPackageManager();
+    const { packageManager } = executionContext;
     if (
       packageManager !== "npm" &&
       packageManager !== "pnpm" &&
@@ -49,12 +52,12 @@ export class PackageManagerService implements vscode.Disposable {
       );
     }
 
-    const { executable, args } =
+    const { executable, args, cwdPath } =
       packageManager === "yarn"
-        ? await this.buildYarnUpgradeCommand(dependency)
+        ? await this.buildYarnUpgradeCommand(dependency, executionContext)
         : packageManager === "bun"
-          ? this.buildBunUpgradeCommand(dependency)
-          : this.buildUpgradeCommand(packageManager, dependency);
+          ? this.buildBunUpgradeCommand(dependency, executionContext)
+          : this.buildUpgradeCommand(packageManager, dependency, executionContext);
 
     const commandLine = [executable, ...args].join(" ");
 
@@ -64,7 +67,7 @@ export class PackageManagerService implements vscode.Disposable {
 
     try {
       const { stdout, stderr } = await execFileAsync(executable, args, {
-        cwd: workspaceFolder.uri.fsPath,
+        cwd: cwdPath,
         maxBuffer: 10 * 1024 * 1024
       });
 
@@ -115,8 +118,15 @@ export class PackageManagerService implements vscode.Disposable {
 
   private buildUpgradeCommand(
     packageManager: "npm" | "pnpm",
-    dependency: DependencyRecord
+    dependency: DependencyRecord,
+    executionContext: PackageManagerExecutionContext
   ): UpgradeCommand {
+    if (executionContext.isMonorepoPackage) {
+      return packageManager === "pnpm"
+        ? this.buildPnpmWorkspaceUpgradeCommand(dependency, executionContext)
+        : this.buildNpmWorkspaceUpgradeCommand(dependency, executionContext);
+    }
+
     if (packageManager === "pnpm") {
       const executable = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
       const args =
@@ -126,7 +136,8 @@ export class PackageManagerService implements vscode.Disposable {
 
       return {
         executable,
-        args
+        args,
+        cwdPath: executionContext.commandCwdPath
       };
     }
 
@@ -138,12 +149,14 @@ export class PackageManagerService implements vscode.Disposable {
 
     return {
       executable,
-      args
+      args,
+      cwdPath: executionContext.commandCwdPath
     };
   }
 
   private buildBunUpgradeCommand(
-    dependency: DependencyRecord
+    dependency: DependencyRecord,
+    executionContext: PackageManagerExecutionContext
   ): UpgradeCommand {
     // Bun 官方文档里，升级单个包到最新版本的方式是：
     // `bun update <package> --latest`
@@ -152,50 +165,165 @@ export class PackageManagerService implements vscode.Disposable {
 
     return {
       executable,
-      args: ["update", dependency.name, "--latest"]
+      args: ["update", dependency.name, "--latest"],
+      cwdPath: executionContext.packageDirPath
     };
   }
 
   private async buildYarnUpgradeCommand(
-    dependency: DependencyRecord
+    dependency: DependencyRecord,
+    executionContext: PackageManagerExecutionContext
   ): Promise<UpgradeCommand> {
     const executable = process.platform === "win32" ? "yarn.cmd" : "yarn";
-    const yarnVariant = await this.detectYarnVariant();
+    if (executionContext.isMonorepoPackage) {
+      const workspaceName = dependency.packageManifest.packageName;
+      if (!workspaceName) {
+        throw new Error(
+          "Yarn workspace upgrades require the target package.json to have a name field."
+        );
+      }
+
+      const args =
+        dependency.section === "devDependencies"
+          ? ["workspace", workspaceName, "add", "-D", `${dependency.name}@latest`]
+          : ["workspace", workspaceName, "add", `${dependency.name}@latest`];
+
+      return {
+        executable,
+        args,
+        cwdPath: executionContext.commandCwdPath
+      };
+    }
+
+    const yarnVariant = await this.detectYarnVariant(executionContext);
 
     // Yarn 2+ 官方推荐用 `yarn up`。
     if (yarnVariant === "modern") {
       return {
         executable,
-        args: ["up", `${dependency.name}@latest`]
+        args: ["up", `${dependency.name}@latest`],
+        cwdPath: executionContext.commandCwdPath
       };
     }
 
     // Yarn Classic 使用 `yarn upgrade <pkg> --latest` 来忽略旧的 range。
     return {
       executable,
-      args: ["upgrade", dependency.name, "--latest"]
+      args: ["upgrade", dependency.name, "--latest"],
+      cwdPath: executionContext.commandCwdPath
     };
   }
 
-  private async detectPackageManager(): Promise<PackageManagerKind> {
-    if (await this.fileExists("pnpm-lock.yaml")) {
-      return "pnpm";
-    }
+  private buildNpmWorkspaceUpgradeCommand(
+    dependency: DependencyRecord,
+    executionContext: PackageManagerExecutionContext
+  ): UpgradeCommand {
+    const executable = process.platform === "win32" ? "npm.cmd" : "npm";
+    const args =
+      dependency.section === "devDependencies"
+        ? [
+            "install",
+            `${dependency.name}@latest`,
+            "--save-dev",
+            "--workspace",
+            executionContext.workspaceTarget
+          ]
+        : [
+            "install",
+            `${dependency.name}@latest`,
+            "--workspace",
+            executionContext.workspaceTarget
+          ];
 
-    if (await this.fileExists("yarn.lock")) {
-      return "yarn";
-    }
-
-    if (await this.fileExists("bun.lockb") || await this.fileExists("bun.lock")) {
-      return "bun";
-    }
-
-    return "npm";
+    return {
+      executable,
+      args,
+      cwdPath: executionContext.commandCwdPath
+    };
   }
 
-  private async detectYarnVariant(): Promise<YarnVariant> {
+  private buildPnpmWorkspaceUpgradeCommand(
+    dependency: DependencyRecord,
+    executionContext: PackageManagerExecutionContext
+  ): UpgradeCommand {
+    const executable = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+    const args =
+      dependency.section === "devDependencies"
+        ? [
+            "--filter",
+            executionContext.workspaceFilter,
+            "update",
+            `${dependency.name}@latest`,
+            "--dev"
+          ]
+        : [
+            "--filter",
+            executionContext.workspaceFilter,
+            "update",
+            `${dependency.name}@latest`,
+            "--prod"
+          ];
+
+    return {
+      executable,
+      args,
+      cwdPath: executionContext.commandCwdPath
+    };
+  }
+
+  private async detectPackageManager(
+    startingDirectoryPath: string,
+    workspaceFolderPath: string
+  ): Promise<PackageManagerDetectionResult> {
+    for (const directoryPath of walkUpDirectories(
+      startingDirectoryPath,
+      workspaceFolderPath
+    )) {
+      if (await this.fileExists(directoryPath, "pnpm-lock.yaml")) {
+        return {
+          packageManager: "pnpm",
+          managerRootPath: directoryPath
+        };
+      }
+
+      if (await this.fileExists(directoryPath, "yarn.lock")) {
+        return {
+          packageManager: "yarn",
+          managerRootPath: directoryPath
+        };
+      }
+
+      if (
+        (await this.fileExists(directoryPath, "bun.lock")) ||
+        (await this.fileExists(directoryPath, "bun.lockb"))
+      ) {
+        return {
+          packageManager: "bun",
+          managerRootPath: directoryPath
+        };
+      }
+
+      if (await this.fileExists(directoryPath, "package-lock.json")) {
+        return {
+          packageManager: "npm",
+          managerRootPath: directoryPath
+        };
+      }
+    }
+
+    return {
+      packageManager: "npm",
+      managerRootPath: startingDirectoryPath
+    };
+  }
+
+  private async detectYarnVariant(
+    executionContext: PackageManagerExecutionContext
+  ): Promise<YarnVariant> {
     const packageManagerSpecifier =
-      await this.packageJsonService.getPackageManagerSpecifier();
+      await this.packageJsonService.getPackageManagerSpecifierForDirectory(
+        executionContext.commandCwdPath
+      );
 
     if (packageManagerSpecifier?.startsWith("yarn@")) {
       const version = packageManagerSpecifier.slice("yarn@".length);
@@ -210,26 +338,99 @@ export class PackageManagerService implements vscode.Disposable {
 
     // 这是一个基于项目结构的推断：
     // `.yarnrc.yml` 基本可以视为 Yarn 2+ / Berry 项目。
-    if (await this.fileExists(".yarnrc.yml")) {
+    if (await this.fileExists(executionContext.commandCwdPath, ".yarnrc.yml")) {
       return "modern";
     }
 
     return "classic";
   }
 
-  private async fileExists(fileName: string): Promise<boolean> {
-    const workspaceFolder = this.packageJsonService.getWorkspaceFolder();
-    if (!workspaceFolder) {
-      return false;
-    }
-
+  private async fileExists(
+    directoryPath: string,
+    fileName: string
+  ): Promise<boolean> {
     try {
       await vscode.workspace.fs.stat(
-        vscode.Uri.joinPath(workspaceFolder.uri, fileName)
+        vscode.Uri.file(path.join(directoryPath, fileName))
       );
       return true;
     } catch {
       return false;
     }
   }
+
+  private async resolveExecutionContext(
+    dependency: DependencyRecord
+  ): Promise<PackageManagerExecutionContext | undefined> {
+    const workspaceFolderPath = dependency.packageManifest.workspaceFolderUri;
+    const packageDirPath = dependency.packageManifest.packageDirPath;
+
+    const detection = await this.detectPackageManager(
+      packageDirPath,
+      workspaceFolderPath
+    );
+
+    const isMonorepoPackage =
+      detection.managerRootPath !== packageDirPath &&
+      path.relative(detection.managerRootPath, packageDirPath) !== "";
+    const relativePackageDir = normalizeRelativePath(
+      path.relative(detection.managerRootPath, packageDirPath)
+    );
+
+    return {
+      packageManager: detection.packageManager,
+      managerRootPath: detection.managerRootPath,
+      packageDirPath,
+      commandCwdPath:
+        detection.packageManager === "bun"
+          ? packageDirPath
+          : detection.managerRootPath,
+      isMonorepoPackage,
+      workspaceTarget: relativePackageDir,
+      workspaceFilter: `./${relativePackageDir}`
+    };
+  }
+}
+
+interface PackageManagerDetectionResult {
+  packageManager: PackageManagerKind;
+  managerRootPath: string;
+}
+
+interface PackageManagerExecutionContext {
+  packageManager: PackageManagerKind;
+  managerRootPath: string;
+  packageDirPath: string;
+  commandCwdPath: string;
+  isMonorepoPackage: boolean;
+  workspaceTarget: string;
+  workspaceFilter: string;
+}
+
+function* walkUpDirectories(
+  startingDirectoryPath: string,
+  workspaceFolderPath: string
+): Generator<string> {
+  let currentDirectoryPath = startingDirectoryPath;
+  const normalizedWorkspaceFolderPath = path.resolve(workspaceFolderPath);
+
+  while (currentDirectoryPath.startsWith(normalizedWorkspaceFolderPath)) {
+    yield currentDirectoryPath;
+
+    const parentDirectoryPath = path.dirname(currentDirectoryPath);
+    if (parentDirectoryPath === currentDirectoryPath) {
+      break;
+    }
+
+    if (currentDirectoryPath === normalizedWorkspaceFolderPath) {
+      break;
+    }
+
+    currentDirectoryPath = parentDirectoryPath;
+  }
+}
+
+function normalizeRelativePath(relativePath: string): string {
+  const normalized = relativePath.split(path.sep).join("/");
+  return normalized || ".";
 }

@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 
 import {
   DependencyRecord,
+  PackageManifestRecord,
   DependencySection,
   DependencyStatus
 } from "../models/dependency";
@@ -11,6 +12,7 @@ import { RegistryService } from "../services/registryService";
 // Tree View 里的每个节点都必须能被 getTreeItem() / getChildren() 识别。
 // 这里把“分组节点、依赖节点、空状态节点”统一成一个联合类型。
 type PackageVisionNode =
+  | PackageManifestItem
   | DependencySectionItem
   | DependencyItem
   | EmptyStateItem;
@@ -54,6 +56,13 @@ export class DependencyTreeProvider
   async getChildren(
     element?: PackageVisionNode
   ): Promise<PackageVisionNode[]> {
+    if (element instanceof PackageManifestItem) {
+      return this.buildSectionItems(
+        element.packageManifest,
+        element.dependencies
+      );
+    }
+
     if (element instanceof DependencySectionItem) {
       // 当 VS Code 展开一个分组节点时，会再次调用 getChildren(section)。
       return element.dependencies.map(
@@ -69,22 +78,36 @@ export class DependencyTreeProvider
       return [];
     }
 
-    const workspaceFolder = this.packageJsonService.getWorkspaceFolder();
-    if (!workspaceFolder) {
+    const workspaceFolders = this.packageJsonService.getWorkspaceFolders();
+    if (workspaceFolders.length === 0) {
       return [
         new EmptyStateItem(
           "Open a workspace folder to inspect dependencies.",
-          "Package Vision reads the workspace root package.json."
+          "Package Vision scans package.json files across the current workspace."
         )
       ];
     }
 
-    const hasPackageJson = await this.packageJsonService.hasPackageJson();
-    if (!hasPackageJson) {
+    let packageManifests: PackageManifestRecord[];
+
+    try {
+      packageManifests = await this.packageJsonService.loadPackageManifests();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+
       return [
         new EmptyStateItem(
-          "No package.json found in the workspace root.",
-          `Workspace: ${workspaceFolder.name}`
+          "Unable to read package.json files.",
+          message
+        )
+      ];
+    }
+
+    if (packageManifests.length === 0) {
+      return [
+        new EmptyStateItem(
+          "No package.json files found in the workspace.",
+          "Package Vision scans the workspace for package manifests."
         )
       ];
     }
@@ -117,10 +140,28 @@ export class DependencyTreeProvider
     const enrichedDependencies =
       await this.registryService.enrichDependencies(dependencies);
 
-    return this.buildSectionItems(enrichedDependencies);
+    if (packageManifests.length === 1) {
+      return this.buildSectionItems(packageManifests[0], enrichedDependencies);
+    }
+
+    return this.buildPackageManifestItems(packageManifests, enrichedDependencies);
+  }
+
+  private buildPackageManifestItems(
+    packageManifests: PackageManifestRecord[],
+    dependencies: DependencyRecord[]
+  ): PackageManifestItem[] {
+    return packageManifests.map((packageManifest) => {
+      const manifestDependencies = dependencies.filter(
+        (dependency) => dependency.packageManifest.id === packageManifest.id
+      );
+
+      return new PackageManifestItem(packageManifest, manifestDependencies);
+    });
   }
 
   private buildSectionItems(
+    packageManifest: PackageManifestRecord,
     dependencies: DependencyRecord[]
   ): DependencySectionItem[] {
     const sections: DependencySection[] = ["dependencies", "devDependencies"];
@@ -129,7 +170,9 @@ export class DependencyTreeProvider
       .map((section) => {
         // 先在内存中按 section 分组，再分别渲染成 Tree Item。
         const sectionDependencies = dependencies.filter(
-          (dependency) => dependency.section === section
+          (dependency) =>
+            dependency.section === section &&
+            dependency.packageManifest.id === packageManifest.id
         );
 
         if (sectionDependencies.length === 0) {
@@ -141,6 +184,7 @@ export class DependencyTreeProvider
         ).length;
 
         return new DependencySectionItem(
+          packageManifest,
           section,
           sectionDependencies,
           upgradingCount
@@ -152,8 +196,36 @@ export class DependencyTreeProvider
   }
 }
 
+class PackageManifestItem extends vscode.TreeItem {
+  constructor(
+    readonly packageManifest: PackageManifestRecord,
+    readonly dependencies: DependencyRecord[]
+  ) {
+    super(
+      packageManifest.displayName,
+      vscode.TreeItemCollapsibleState.Expanded
+    );
+
+    const outdatedCount = dependencies.filter(
+      (dependency) => dependency.status === "outdated"
+    ).length;
+
+    this.description =
+      packageManifest.relativeDirPath === "."
+        ? `workspace root • ${dependencies.length} packages`
+        : `${packageManifest.relativeDirPath} • ${dependencies.length} packages`;
+    this.contextValue = "packageManifest";
+    this.tooltip = [
+      `Package: ${packageManifest.displayName}`,
+      `Location: ${packageManifest.relativeDirPath}`,
+      `${outdatedCount} outdated`
+    ].join(" • ");
+  }
+}
+
 class DependencySectionItem extends vscode.TreeItem {
   constructor(
+    readonly packageManifest: PackageManifestRecord,
     readonly section: DependencySection,
     readonly dependencies: DependencyRecord[],
     upgradingCount: number
@@ -277,6 +349,8 @@ function buildDependencyTooltipLines(
   const lines = [
     `**${dependency.name}**`,
     ``,
+    `Package: \`${dependency.packageManifest.displayName}\``,
+    `Location: \`${dependency.packageManifest.relativeDirPath}\``,
     `Section: \`${dependency.section}\``,
     `Declared version: \`${dependency.declaredVersion}\``,
     `Latest version: \`${dependency.latestVersion ?? "Unavailable"}\``,
@@ -335,5 +409,5 @@ function getDependencyIcon(
 }
 
 function createDependencyKey(dependency: DependencyRecord): string {
-  return `${dependency.section}:${dependency.name}`;
+  return `${dependency.packageManifest.id}:${dependency.section}:${dependency.name}`;
 }
