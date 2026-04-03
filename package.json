@@ -20,7 +20,8 @@
   "activationEvents": [
     "onView:packageVision.dependencies",
     "onCommand:packageVision.refresh",
-    "onCommand:packageVision.openPackageJson"
+    "onCommand:packageVision.openPackageJson",
+    "onCommand:packageVision.upgradeDependency"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -51,6 +52,14 @@
         "command": "packageVision.openPackageJson",
         "title": "Open package.json",
         "icon": "$(go-to-file)"
+      },
+      {
+        "command": "packageVision.upgradeDependency",
+        "title": "Upgrade Dependency to Latest",
+        "icon": {
+          "light": "resources/upgrade-light.svg",
+          "dark": "resources/upgrade-dark.svg"
+        }
       }
     ],
     "menus": {
@@ -63,6 +72,18 @@
         {
           "command": "packageVision.openPackageJson",
           "when": "view == packageVision.dependencies",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "packageVision.upgradeDependency",
+          "when": "view == packageVision.dependencies && viewItem == dependencyOutdated",
+          "group": "inline"
+        },
+        {
+          "command": "packageVision.upgradeDependency",
+          "when": "view == packageVision.dependencies && viewItem == dependencyOutdated",
           "group": "navigation"
         }
       ]

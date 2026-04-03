@@ -159,11 +159,21 @@ class DependencyItem extends vscode.TreeItem {
 
     // TreeItem 的 description 空间比较有限，所以这里只放一行最关键的信息。
     this.description = formatDependencyDescription(dependency);
-    this.contextValue = "dependency";
+    this.contextValue =
+      dependency.status === "outdated" ? "dependencyOutdated" : "dependency";
     this.tooltip = new vscode.MarkdownString(
       buildDependencyTooltipLines(dependency).join("\n")
     );
     this.iconPath = getDependencyIcon(dependency.status);
+
+    // 过时依赖可以直接点击触发升级确认，减少来回切换命令面板的成本。
+    if (dependency.status === "outdated" && dependency.latestVersion) {
+      this.command = {
+        command: "packageVision.upgradeDependency",
+        title: "Upgrade Dependency",
+        arguments: [dependency]
+      };
+    }
   }
 }
 
@@ -203,6 +213,10 @@ function buildDependencyTooltipLines(
 
   if (dependency.errorMessage) {
     lines.push(`Issue: ${dependency.errorMessage}`);
+  }
+
+  if (dependency.status === "outdated" && dependency.latestVersion) {
+    lines.push(`Action: Click this item to upgrade to \`${dependency.latestVersion}\`.`);
   }
 
   return lines;
