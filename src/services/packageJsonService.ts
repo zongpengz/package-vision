@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import { DependencyRecord, DependencySection } from "../models/dependency";
 
 interface PackageJsonShape {
+  packageManager?: string;
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
 }
@@ -38,9 +39,26 @@ export class PackageJsonService {
   }
 
   async loadDependencies(): Promise<DependencyRecord[]> {
+    const packageJson = await this.loadPackageJson();
+    if (!packageJson) {
+      return [];
+    }
+
+    return [
+      ...this.toDependencyRecords(packageJson.dependencies, "dependencies"),
+      ...this.toDependencyRecords(packageJson.devDependencies, "devDependencies")
+    ];
+  }
+
+  async getPackageManagerSpecifier(): Promise<string | undefined> {
+    const packageJson = await this.loadPackageJson();
+    return packageJson?.packageManager;
+  }
+
+  private async loadPackageJson(): Promise<PackageJsonShape | undefined> {
     const packageJsonUri = this.getPackageJsonUri();
     if (!packageJsonUri) {
-      return [];
+      return undefined;
     }
 
     try {
@@ -48,12 +66,7 @@ export class PackageJsonService {
       // 这样代码风格更贴近扩展开发场景，也更容易后续适配 VS Code 的资源模型。
       const raw = await vscode.workspace.fs.readFile(packageJsonUri);
       const text = new TextDecoder("utf-8").decode(raw);
-      const packageJson = JSON.parse(text) as PackageJsonShape;
-
-      return [
-        ...this.toDependencyRecords(packageJson.dependencies, "dependencies"),
-        ...this.toDependencyRecords(packageJson.devDependencies, "devDependencies")
-      ];
+      return JSON.parse(text) as PackageJsonShape;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       throw new Error(`Unable to read package.json: ${message}`);

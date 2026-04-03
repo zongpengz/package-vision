@@ -9,6 +9,7 @@ import { PackageJsonService } from "./packageJsonService";
 const execFileAsync = promisify(execFile);
 
 type PackageManagerKind = "npm" | "pnpm" | "yarn" | "bun";
+type YarnVariant = "classic" | "modern";
 
 interface UpgradeResult {
   commandLine: string;
@@ -26,7 +27,7 @@ export class PackageManagerService implements vscode.Disposable {
 
   constructor(private readonly packageJsonService: PackageJsonService) {}
 
-  // 目前自动升级已经支持 npm 和 pnpm。
+  // 目前自动升级已经支持 npm、pnpm 和 yarn。
   // 其他包管理器先做识别和友好报错，避免在错误的工具链上直接改项目。
   async upgradeDependency(
     dependency: DependencyRecord
@@ -37,16 +38,20 @@ export class PackageManagerService implements vscode.Disposable {
     }
 
     const packageManager = await this.detectPackageManager();
-    if (packageManager !== "npm" && packageManager !== "pnpm") {
+    if (
+      packageManager !== "npm" &&
+      packageManager !== "pnpm" &&
+      packageManager !== "yarn"
+    ) {
       throw new Error(
-        `Automatic upgrades currently support npm and pnpm only. Detected package manager: ${packageManager}.`
+        `Automatic upgrades currently support npm, pnpm, and yarn only. Detected package manager: ${packageManager}.`
       );
     }
 
-    const { executable, args } = this.buildUpgradeCommand(
-      packageManager,
-      dependency
-    );
+    const { executable, args } =
+      packageManager === "yarn"
+        ? await this.buildYarnUpgradeCommand(dependency)
+        : this.buildUpgradeCommand(packageManager, dependency);
 
     const commandLine = [executable, ...args].join(" ");
 
@@ -134,6 +139,27 @@ export class PackageManagerService implements vscode.Disposable {
     };
   }
 
+  private async buildYarnUpgradeCommand(
+    dependency: DependencyRecord
+  ): Promise<UpgradeCommand> {
+    const executable = process.platform === "win32" ? "yarn.cmd" : "yarn";
+    const yarnVariant = await this.detectYarnVariant();
+
+    // Yarn 2+ 官方推荐用 `yarn up`。
+    if (yarnVariant === "modern") {
+      return {
+        executable,
+        args: ["up", `${dependency.name}@latest`]
+      };
+    }
+
+    // Yarn Classic 使用 `yarn upgrade <pkg> --latest` 来忽略旧的 range。
+    return {
+      executable,
+      args: ["upgrade", dependency.name, "--latest"]
+    };
+  }
+
   private async detectPackageManager(): Promise<PackageManagerKind> {
     if (await this.fileExists("pnpm-lock.yaml")) {
       return "pnpm";
@@ -148,6 +174,30 @@ export class PackageManagerService implements vscode.Disposable {
     }
 
     return "npm";
+  }
+
+  private async detectYarnVariant(): Promise<YarnVariant> {
+    const packageManagerSpecifier =
+      await this.packageJsonService.getPackageManagerSpecifier();
+
+    if (packageManagerSpecifier?.startsWith("yarn@")) {
+      const version = packageManagerSpecifier.slice("yarn@".length);
+      const majorVersion = Number.parseInt(version, 10);
+
+      if (Number.isFinite(majorVersion) && majorVersion >= 2) {
+        return "modern";
+      }
+
+      return "classic";
+    }
+
+    // 这是一个基于项目结构的推断：
+    // `.yarnrc.yml` 基本可以视为 Yarn 2+ / Berry 项目。
+    if (await this.fileExists(".yarnrc.yml")) {
+      return "modern";
+    }
+
+    return "classic";
   }
 
   private async fileExists(fileName: string): Promise<boolean> {
