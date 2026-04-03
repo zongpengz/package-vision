@@ -69,7 +69,8 @@ export class PackageJsonService {
       .map(([name, declaredVersion]) => ({
         name,
         section,
-        declaredVersion
+        declaredVersion,
+        status: "unknown" as const
       }));
   }
 }

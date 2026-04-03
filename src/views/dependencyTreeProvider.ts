@@ -1,7 +1,12 @@
 import * as vscode from "vscode";
 
-import { DependencyRecord, DependencySection } from "../models/dependency";
+import {
+  DependencyRecord,
+  DependencySection,
+  DependencyStatus
+} from "../models/dependency";
 import { PackageJsonService } from "../services/packageJsonService";
+import { RegistryService } from "../services/registryService";
 
 type PackageVisionNode =
   | DependencySectionItem
@@ -16,7 +21,10 @@ export class DependencyTreeProvider
 
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
-  constructor(private readonly packageJsonService: PackageJsonService) {}
+  constructor(
+    private readonly packageJsonService: PackageJsonService,
+    private readonly registryService: RegistryService
+  ) {}
 
   refresh(): void {
     this.onDidChangeTreeDataEmitter.fire();
@@ -83,7 +91,10 @@ export class DependencyTreeProvider
       ];
     }
 
-    return this.buildSectionItems(dependencies);
+    const enrichedDependencies =
+      await this.registryService.enrichDependencies(dependencies);
+
+    return this.buildSectionItems(enrichedDependencies);
   }
 
   private buildSectionItems(
@@ -119,9 +130,20 @@ class DependencySectionItem extends vscode.TreeItem {
       vscode.TreeItemCollapsibleState.Expanded
     );
 
-    this.description = `${dependencies.length}`;
+    const outdatedCount = dependencies.filter(
+      (dependency) => dependency.status === "outdated"
+    ).length;
+
+    this.description =
+      outdatedCount > 0
+        ? `${outdatedCount} outdated / ${dependencies.length}`
+        : `${dependencies.length} packages`;
     this.contextValue = "dependencySection";
-    this.tooltip = `${formatSectionLabel(section)} (${dependencies.length})`;
+    this.tooltip = [
+      `${formatSectionLabel(section)}`,
+      `${dependencies.length} total`,
+      `${outdatedCount} outdated`
+    ].join(" • ");
   }
 }
 
@@ -129,17 +151,12 @@ class DependencyItem extends vscode.TreeItem {
   constructor(readonly dependency: DependencyRecord) {
     super(dependency.name, vscode.TreeItemCollapsibleState.None);
 
-    this.description = dependency.declaredVersion;
+    this.description = formatDependencyDescription(dependency);
     this.contextValue = "dependency";
     this.tooltip = new vscode.MarkdownString(
-      [
-        `**${dependency.name}**`,
-        ``,
-        `Section: \`${dependency.section}\``,
-        `Declared version: \`${dependency.declaredVersion}\``
-      ].join("\n")
+      buildDependencyTooltipLines(dependency).join("\n")
     );
-    this.iconPath = new vscode.ThemeIcon("package");
+    this.iconPath = getDependencyIcon(dependency.status);
   }
 }
 
@@ -155,4 +172,59 @@ class EmptyStateItem extends vscode.TreeItem {
 
 function formatSectionLabel(section: DependencySection): string {
   return section === "dependencies" ? "Dependencies" : "Dev Dependencies";
+}
+
+function formatDependencyDescription(dependency: DependencyRecord): string {
+  if (dependency.latestVersion) {
+    return `${dependency.declaredVersion} -> ${dependency.latestVersion}`;
+  }
+
+  return `${dependency.declaredVersion} -> unavailable`;
+}
+
+function buildDependencyTooltipLines(
+  dependency: DependencyRecord
+): string[] {
+  const lines = [
+    `**${dependency.name}**`,
+    ``,
+    `Section: \`${dependency.section}\``,
+    `Declared version: \`${dependency.declaredVersion}\``,
+    `Latest version: \`${dependency.latestVersion ?? "Unavailable"}\``,
+    `Status: ${formatDependencyStatus(dependency.status)}`
+  ];
+
+  if (dependency.errorMessage) {
+    lines.push(`Issue: ${dependency.errorMessage}`);
+  }
+
+  return lines;
+}
+
+function formatDependencyStatus(status: DependencyStatus): string {
+  switch (status) {
+    case "upToDate":
+      return "Up to date";
+    case "outdated":
+      return "Outdated";
+    case "error":
+      return "Lookup failed";
+    case "unknown":
+    default:
+      return "Unable to compare";
+  }
+}
+
+function getDependencyIcon(status: DependencyStatus): vscode.ThemeIcon {
+  switch (status) {
+    case "upToDate":
+      return new vscode.ThemeIcon("check");
+    case "outdated":
+      return new vscode.ThemeIcon("warning");
+    case "error":
+      return new vscode.ThemeIcon("error");
+    case "unknown":
+    default:
+      return new vscode.ThemeIcon("package");
+  }
 }

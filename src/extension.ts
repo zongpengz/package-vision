@@ -1,11 +1,16 @@
 import * as vscode from "vscode";
 
 import { PackageJsonService } from "./services/packageJsonService";
+import { RegistryService } from "./services/registryService";
 import { DependencyTreeProvider } from "./views/dependencyTreeProvider";
 
 export function activate(context: vscode.ExtensionContext): void {
   const packageJsonService = new PackageJsonService();
-  const treeProvider = new DependencyTreeProvider(packageJsonService);
+  const registryService = new RegistryService();
+  const treeProvider = new DependencyTreeProvider(
+    packageJsonService,
+    registryService
+  );
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider(

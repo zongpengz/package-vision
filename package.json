@@ -76,7 +76,11 @@
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
+    "@types/semver": "^7.7.1",
     "@types/vscode": "^1.105.0",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "semver": "^7.7.4"
   }
 }
