@@ -1,0 +1,82 @@
+{
+  "name": "package-vision",
+  "displayName": "Package Vision",
+  "description": "Inspect workspace dependency declarations from the VS Code sidebar.",
+  "version": "0.0.1",
+  "publisher": "zongpengz",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "package.json",
+    "dependencies",
+    "npm",
+    "versions"
+  ],
+  "activationEvents": [
+    "onView:packageVision.dependencies",
+    "onCommand:packageVision.refresh",
+    "onCommand:packageVision.openPackageJson"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "packageVision",
+          "title": "Package Vision",
+          "icon": "resources/package-vision.svg"
+        }
+      ]
+    },
+    "views": {
+      "packageVision": [
+        {
+          "id": "packageVision.dependencies",
+          "name": "Dependencies"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "packageVision.refresh",
+        "title": "Refresh Dependencies",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "packageVision.openPackageJson",
+        "title": "Open package.json",
+        "icon": "$(go-to-file)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "packageVision.refresh",
+          "when": "view == packageVision.dependencies",
+          "group": "navigation"
+        },
+        {
+          "command": "packageVision.openPackageJson",
+          "when": "view == packageVision.dependencies",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc --watch -p ./",
+    "check": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "@types/vscode": "^1.105.0",
+    "typescript": "^5.9.3"
+  }
+}
