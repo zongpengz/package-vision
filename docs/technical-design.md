@@ -4,10 +4,10 @@
 
 这个扩展的技术设计要同时满足两件事：
 
-- 对用户来说，依赖查看和升级动作要直观
-- 对开发者来说，结构要清晰，适合新手逐步实现
+- 对用户来说，依赖查看、筛选和升级动作要直观
+- 对开发者来说，结构要清晰，适合新手逐步理解和扩展
 
-因此第一版要优先选择 VS Code 原生能力，而不是一开始就堆复杂 UI。
+因此当前实现仍然优先选择 VS Code 原生能力，而不是一开始就堆复杂 UI。
 
 ## 2. 核心技术决策
 
@@ -28,15 +28,15 @@
 
 ### 2.3 使用 Tree View 作为第一版 UI
 
-第一版建议使用 `Tree View`，理由是：
+当前版本继续使用 `Tree View`，理由是：
 
 - 原生集成度高
 - 风格和 VS Code 内置视图一致
-- 适合分组展示依赖
+- 适合 package / section / dependency 的树状结构
 - 对新手更容易上手
-- 足以承载刷新、右键菜单、单包升级等操作
+- 足以承载刷新、右键菜单、筛选、单包升级等操作
 
-只有当你后面想做复杂筛选、版本对比卡片、图表或更自由的布局时，才建议升级到 `WebviewView`。
+即使已经加入快速筛选，这一版仍然可以稳定地用 `Tree View` 承载，不需要为了筛选就切到 `WebviewView`。
 
 ## 3. 总体架构
 
@@ -45,34 +45,40 @@ flowchart LR
   A["Activity Bar: Package Vision"] --> B["DependencyTreeProvider"]
   B --> C["PackageJsonService"]
   B --> D["RegistryService"]
-  B --> E["PackageManagerService"]
-  E --> F["Terminal or child_process"]
+  B --> E["dependencyFilterUtils"]
+  A --> F["extension.ts commands"]
+  F --> G["configuration.ts"]
+  F --> H["PackageManagerService"]
+  H --> I["packageManagerCore / versionRangeUtils"]
+  H --> J["child_process"]
 ```
 
-## 4. 推荐目录结构
-
-建议在扩展初始化后逐步整理成下面的结构：
+## 4. 当前目录结构
 
 ```text
 package-vision/
   src/
     extension.ts
-    commands/
-      refreshDependencies.ts
-      upgradeDependency.ts
+    configuration.ts
     models/
       dependency.ts
     services/
       packageJsonService.ts
+      packageManifestUtils.ts
       registryService.ts
+      registryUtils.ts
       packageManagerService.ts
-      workspaceService.ts
+      packageManagerCore.ts
+      versionRangeUtils.ts
     views/
       dependencyTreeProvider.ts
-      treeItems.ts
-    utils/
-      semver.ts
-      errors.ts
+      dependencyFilterUtils.ts
+  tests/
+    dependencyFilterUtils.test.ts
+    packageManagerCore.test.ts
+    packageManifestUtils.test.ts
+    registryUtils.test.ts
+    versionRangeUtils.test.ts
   resources/
     package-vision.svg
   docs/
@@ -81,8 +87,6 @@ package-vision/
     development-workflow.md
 ```
 
-你不需要一开始就把所有文件都建出来，但这个结构可以帮助你在实现过程中不把所有逻辑都塞进 `extension.ts`。
-
 ## 5. 模块职责
 
 ### 5.1 `extension.ts`
@@ -90,31 +94,32 @@ package-vision/
 负责：
 
 - 扩展激活入口
-- 注册 Tree View Provider
+- 创建 Tree View
 - 注册命令
-- 初始化共享服务
+- 同步视图标题栏状态，例如筛选标签
 
 不要负责：
 
 - 直接解析 `package.json`
 - 直接请求 registry
-- 直接拼接所有 UI 文案
+- 直接拼接所有包管理器命令
 
-### 5.2 `workspaceService.ts`
-
-负责：
-
-- 获取当前工作区根路径
-- 判断是否存在 `package.json`
-- 后续可扩展为识别多包项目
-
-### 5.3 `packageJsonService.ts`
+### 5.2 `packageJsonService.ts`
 
 负责：
 
-- 读取并解析 `package.json`
+- 扫描工作区中的多个 `package.json`
+- 读取和解析 `package.json`
 - 提取 `dependencies`、`devDependencies`
-- 返回统一的数据结构
+- 更新指定依赖的版本声明
+
+### 5.3 `packageManifestUtils.ts`
+
+负责：
+
+- 组装 `PackageManifestRecord`
+- 把 manifest 展开成统一的依赖记录
+- 做路径标准化
 
 ### 5.4 `registryService.ts`
 
@@ -122,85 +127,129 @@ package-vision/
 
 - 根据包名查询最新版本
 - 处理请求失败、超时、缓存
-- 控制并发，避免一次打太多请求
+- 控制并发，避免瞬间打出过多请求
 
-### 5.5 `packageManagerService.ts`
+### 5.5 `registryUtils.ts`
+
+负责：
+
+- 计算依赖是 `upToDate`、`outdated` 还是 `unknown`
+- 抽出与 semver 相关的纯逻辑，方便测试
+
+### 5.6 `packageManagerService.ts`
 
 负责：
 
 - 识别项目包管理器
-- 生成升级命令
+- 计算执行上下文
 - 执行升级命令
-- 返回执行结果
+- 根据设置项改写版本范围
+- 触发锁文件同步
+- 输出日志
 
-### 5.6 `dependencyTreeProvider.ts`
+### 5.7 `packageManagerCore.ts`
+
+负责：
+
+- 构造不同包管理器的升级命令
+- 构造锁文件同步命令
+- 处理 monorepo / workspace 路径相关纯逻辑
+
+### 5.8 `configuration.ts`
+
+负责：
+
+- 读取 VS Code 配置项
+- 为升级逻辑提供版本范围策略
+
+### 5.9 `versionRangeUtils.ts`
+
+负责：
+
+- 解析当前声明版本的保存风格
+- 根据配置项生成新的版本范围
+- 处理 `preserve / caret / tilde / exact`
+
+### 5.10 `dependencyTreeProvider.ts`
 
 负责：
 
 - 将依赖数据转换成 Tree Item
 - 管理刷新
+- 管理筛选状态
 - 提供空状态提示
 - 与命令层联动
 
-## 6. 数据模型建议
+### 5.11 `dependencyFilterUtils.ts`
+
+负责：
+
+- 根据依赖状态做快速筛选
+- 输出筛选标签文案
+
+## 6. 数据模型
 
 ```ts
-export type DependencySection =
-  | 'dependencies'
-  | 'devDependencies'
-  | 'peerDependencies'
-  | 'optionalDependencies';
+export type DependencySection = "dependencies" | "devDependencies";
+
+export interface PackageManifestRecord {
+  id: string;
+  packageJsonPath: string;
+  packageDirPath: string;
+  displayName: string;
+  relativeDirPath: string;
+}
 
 export interface DependencyRecord {
   name: string;
   section: DependencySection;
   declaredVersion: string;
+  packageManifest: PackageManifestRecord;
   latestVersion?: string;
-  status: 'unknown' | 'upToDate' | 'outdated' | 'error';
-  packageManager: 'npm' | 'pnpm' | 'yarn' | 'bun' | 'unknown';
+  status: "unknown" | "upToDate" | "outdated" | "error";
+  errorMessage?: string;
 }
 ```
 
-第一版就算只用到其中一部分字段，也建议一开始把模型稍微设计完整一点，后面扩展会省很多事。
+当前实现围绕 `DependencyRecord + PackageManifestRecord` 展开，这样在 monorepo 里可以明确知道依赖属于哪个 package。
 
 ## 7. 激活与数据流
 
-推荐数据流如下：
+推荐按下面的顺序理解当前数据流：
 
 1. 用户点击 Activity Bar 中的 `Package Vision`
 2. VS Code 激活扩展
-3. 扩展检查当前工作区是否存在 `package.json`
+3. 扩展扫描工作区中的 `package.json`
 4. 解析依赖列表
 5. 查询每个依赖的最新版本
-6. Tree View 渲染结果
-7. 用户点击“升级”
-8. 执行包管理器命令
-9. 成功后刷新视图
+6. 根据当前筛选条件过滤结果
+7. Tree View 渲染结果
+8. 用户点击“升级”
+9. 执行包管理器命令
+10. 按设置项改写版本范围并同步锁文件
+11. 成功后刷新视图
 
 ## 8. 扩展清单中的关键贡献点
 
-在 `package.json` 中，第一版重点会用到这些 contribution points：
+在 `package.json` 中，当前重点使用这些 contribution points：
 
 - `contributes.viewsContainers.activitybar`
 - `contributes.views`
 - `contributes.commands`
 - `contributes.menus`
 - `contributes.configuration`
-- `contributes.viewsWelcome`
 
 ### 8.1 视图容器
 
-用于在 Activity Bar 增加一个新的入口。
+用于在 Activity Bar 增加新的入口。
 
 ### 8.2 视图
 
 用于把依赖列表挂到这个容器里。
 
-如果你的 `engines.vscode` 版本不低于 `1.74.0`，通常不需要再手动声明对应的 `onView:*` 激活事件；更老版本则要额外注意这个兼容点。
-
 ### 8.3 命令
 
-用于刷新、升级、打开配置等操作。
+用于刷新、筛选、升级、打开 `package.json`、查看输出等操作。
 
 ### 8.4 菜单
 
@@ -211,95 +260,93 @@ export interface DependencyRecord {
 
 ### 8.5 配置项
 
-用于后续扩展，例如：
+当前已经用于控制升级后的版本范围写回策略：
 
-- 是否显示 `devDependencies`
-- 是否自动刷新
-- 升级时是否保留 `^`
-
-### 8.6 Welcome 内容
-
-用于在视图为空时显示引导内容，例如：
-
-- 没有打开工作区
-- 没有找到 `package.json`
-- 当前没有可展示的依赖
-
-这比单纯显示空白树更友好，也更适合新手理解“为什么没有内容”。
+- `preserve`
+- `caret`
+- `tilde`
+- `exact`
 
 ## 9. UI 方案
 
 ### 9.1 视图结构
 
-推荐结构：
+多 package 项目：
+
+- `apps/web`
+  - `Dependencies`
+    - `react`
+  - `Dev Dependencies`
+    - `vite`
+
+单 package 项目：
 
 - `Dependencies`
   - `react`
-  - `react-dom`
 - `Dev Dependencies`
   - `typescript`
-  - `vite`
 
 ### 9.2 Tree Item 展示策略
+
+package 项：
+
+- `label` 使用 package 名或目录名
+- `description` 展示位置和依赖数量
 
 分组项：
 
 - `label` 使用分组名
-- 可展示数量，例如 `(12)`
+- `description` 展示总量、过时数量或升级中数量
 
 依赖项：
 
 - `label`：包名
-- `description`：声明版本，例如 `^18.3.1`
-- `tooltip`：显示最新版本和状态
-- `iconPath` 或 `resourceUri`：区分已过时和已最新
+- `description`：声明版本和最新版本，例如 `^18.3.1 -> 19.0.0`
+- `tooltip`：显示 package、位置、状态和操作提示
+- `iconPath`：使用彩色状态图标区分已最新、过时、失败和升级中
 
 ### 9.3 命令建议
 
+当前命令包括：
+
 - `packageVision.refresh`
+- `packageVision.setFilter`
+- `packageVision.clearFilter`
 - `packageVision.upgradeDependency`
 - `packageVision.openPackageJson`
-- `packageVision.copyInstallCommand`
-
-第一版至少保证前两个。
+- `packageVision.showOutput`
 
 ## 10. 包管理器策略
 
 ### 10.1 识别规则
 
-建议通过锁文件判断：
+当前实现通过锁文件向上查找判断：
 
 - `pnpm-lock.yaml` -> `pnpm`
 - `yarn.lock` -> `yarn`
+- `bun.lock` / `bun.lockb` -> `bun`
 - `package-lock.json` -> `npm`
-- 其他 -> `unknown`
+- 其他 -> 默认按 `npm` 处理
 
-### 10.2 MVP 建议
-
-虽然可以识别多个包管理器，但第一版的执行策略建议更保守：
-
-- 如果识别为 npm，则允许直接升级
-- 如果识别为其他包管理器，则先提示“已识别，但暂未支持自动升级”
-
-这样你既能把架构留好，也能降低第一版实现难度。
-
-### 10.3 升级命令示例
+### 10.2 升级命令示例
 
 - npm：`npm install <pkg>@latest`
-- pnpm：`pnpm up <pkg>@latest`
-- yarn classic：`yarn add <pkg>@latest`
+- pnpm：`pnpm update <pkg>@latest`
+- yarn modern：`yarn up <pkg>@latest`
+- yarn classic：`yarn upgrade <pkg> --latest`
+- bun：`bun update <pkg> --latest`
 
-注意：不同管理器对 `dependencies` 和 `devDependencies` 的写回行为不同，后续要进一步细化。
+注意：当前实现已经通过配置项统一最终写回到 `package.json` 的版本范围，并在必要时再次执行安装同步锁文件。
 
 ## 11. 最新版本获取策略
 
-推荐第一版直接查询 npm registry，而不是调用 `npm outdated`：
+当前实现直接查询 npm registry，而不是调用 `npm outdated`：
 
 - 更容易拿到结构化数据
 - 不依赖本地 CLI 输出格式
 - 更容易做缓存和错误处理
 
-建议实现细节：
+实现细节：
 
 - 使用 HTTPS 请求 registry
 - 设置超时
@@ -308,7 +355,7 @@ export interface DependencyRecord {
 
 ## 12. 错误处理设计
 
-至少要覆盖这些情况：
+至少覆盖这些情况：
 
 - 当前没有打开工作区
 - 工作区没有 `package.json`
@@ -317,73 +364,14 @@ export interface DependencyRecord {
 - registry 返回异常
 - 包管理器未安装
 - 升级命令执行失败
+- 当前筛选条件下没有匹配依赖
 
-建议错误展示方式：
+## 13. 测试策略
 
-- 轻量错误：`showWarningMessage`
-- 阻塞错误：`showErrorMessage`
-- 视图状态：Tree View 空状态文案
+当前仓库优先使用“纯逻辑单元测试”：
 
-## 13. 性能设计
+- 把包管理器命令构造、版本范围处理、筛选逻辑拆成纯函数
+- 用 `tsx --test` 跑单元测试
+- 用 `npm run check` 串联 compile + test
 
-虽然第一版不需要过度优化，但最好提前做两个约束：
-
-- 不要无限并发请求所有依赖
-- 不要每次展开视图都重新请求全部版本
-
-可采用的简单策略：
-
-- 并发上限 5 到 10
-- 缓存最近一次查询结果 1 到 5 分钟
-
-## 14. 测试策略
-
-### 14.1 单元测试
-
-优先测纯逻辑：
-
-- 解析 `package.json`
-- 包管理器识别
-- semver 状态判断
-- 命令拼接
-
-### 14.2 集成验证
-
-在 Extension Development Host 中验证：
-
-- 左侧入口是否出现
-- 列表是否正确展示
-- 升级命令是否正确执行
-- 成功后是否自动刷新
-
-## 15. 未来演进方向
-
-当 Tree View 版本稳定后，可以考虑：
-
-- 增加过滤和搜索
-- 显示 `wanted` 版本
-- 增加 changelog、npm 页面跳转
-- 增加升级全部
-- 升级到 `WebviewView` 做更丰富的界面
-
-## 16. 对新手最重要的实现顺序
-
-不要一开始就做“真实查询 + 升级命令 + 多包管理器”。更好的顺序是：
-
-1. Activity Bar 入口
-2. Tree View 假数据
-3. 读取真实 `package.json`
-4. 查询最新版本
-5. 单包升级
-6. 错误处理和测试
-
-这会让你每一步都能看到清晰成果，也更适合积累 VS Code 扩展开发经验。
-
-## 17. 参考资料
-
-- [Your First Extension](https://code.visualstudio.com/api/get-started/your-first-extension)
-- [Tree View API](https://code.visualstudio.com/api/extension-guides/tree-view)
-- [Contribution Points](https://code.visualstudio.com/api/references/contribution-points)
-- [Views UX Guidelines](https://code.visualstudio.com/api/ux-guidelines/views)
-- [Activity Bar UX Guidelines](https://code.visualstudio.com/api/ux-guidelines/activity-bar)
-- [Web Extensions](https://code.visualstudio.com/api/extension-guides/web-extensions)
+这样测试不依赖 VS Code Extension Host，执行更快，也更适合当前迭代节奏。

@@ -8,6 +8,11 @@ import {
 } from "../models/dependency";
 import { PackageJsonService } from "../services/packageJsonService";
 import { RegistryService } from "../services/registryService";
+import {
+  DependencyFilterMode,
+  filterDependencies,
+  formatDependencyFilterLabel
+} from "./dependencyFilterUtils";
 
 // Tree View 里的每个节点都必须能被 getTreeItem() / getChildren() 识别。
 // 这里把“分组节点、依赖节点、空状态节点”统一成一个联合类型。
@@ -23,6 +28,7 @@ export class DependencyTreeProvider
   private readonly onDidChangeTreeDataEmitter =
     new vscode.EventEmitter<PackageVisionNode | undefined | void>();
   private readonly upgradingDependencyKeys = new Set<string>();
+  private filterMode: DependencyFilterMode = "all";
 
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
@@ -33,6 +39,25 @@ export class DependencyTreeProvider
 
   refresh(): void {
     this.onDidChangeTreeDataEmitter.fire();
+  }
+
+  getFilterMode(): DependencyFilterMode {
+    return this.filterMode;
+  }
+
+  hasActiveFilter(): boolean {
+    return this.filterMode !== "all";
+  }
+
+  getFilterLabel(): string | undefined {
+    return this.hasActiveFilter()
+      ? formatDependencyFilterLabel(this.filterMode)
+      : undefined;
+  }
+
+  setFilterMode(filterMode: DependencyFilterMode): void {
+    this.filterMode = filterMode;
+    this.refresh();
   }
 
   startUpgrade(dependency: DependencyRecord): void {
@@ -139,12 +164,26 @@ export class DependencyTreeProvider
     // 先读本地 package.json，再补充 npm registry 的最新版本信息。
     const enrichedDependencies =
       await this.registryService.enrichDependencies(dependencies);
+    const visibleDependencies = filterDependencies(
+      enrichedDependencies,
+      this.filterMode,
+      (dependency) => this.isDependencyUpgrading(dependency)
+    );
 
-    if (packageManifests.length === 1) {
-      return this.buildSectionItems(packageManifests[0], enrichedDependencies);
+    if (visibleDependencies.length === 0) {
+      return [
+        new EmptyStateItem(
+          "No dependencies match the current filter.",
+          `Current filter: ${formatDependencyFilterLabel(this.filterMode)}`
+        )
+      ];
     }
 
-    return this.buildPackageManifestItems(packageManifests, enrichedDependencies);
+    if (packageManifests.length === 1) {
+      return this.buildSectionItems(packageManifests[0], visibleDependencies);
+    }
+
+    return this.buildPackageManifestItems(packageManifests, visibleDependencies);
   }
 
   private buildPackageManifestItems(
@@ -157,7 +196,7 @@ export class DependencyTreeProvider
       );
 
       return new PackageManifestItem(packageManifest, manifestDependencies);
-    });
+    }).filter((item) => item.dependencies.length > 0);
   }
 
   private buildSectionItems(

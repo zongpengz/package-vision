@@ -6,6 +6,10 @@ import { PackageManagerService } from "./services/packageManagerService";
 import { PackageJsonService } from "./services/packageJsonService";
 import { RegistryService } from "./services/registryService";
 import { DependencyTreeProvider } from "./views/dependencyTreeProvider";
+import {
+  DependencyFilterMode,
+  formatDependencyFilterLabel
+} from "./views/dependencyFilterUtils";
 
 export function activate(context: vscode.ExtensionContext): void {
   // activate() 是扩展真正“启动”的地方。
@@ -17,17 +21,22 @@ export function activate(context: vscode.ExtensionContext): void {
     packageJsonService,
     registryService
   );
+  const dependencyTreeView = vscode.window.createTreeView(
+    "packageVision.dependencies",
+    {
+      treeDataProvider: treeProvider
+    }
+  );
 
   context.subscriptions.push(packageManagerService);
+  context.subscriptions.push(dependencyTreeView);
 
   context.subscriptions.push(
-    // 把我们的数据提供器挂到 packageVision.dependencies 这个视图 ID 上。
-    // 这个 ID 要和 package.json 里的 contributes.views 中的定义保持一致。
-    vscode.window.registerTreeDataProvider(
-      "packageVision.dependencies",
-      treeProvider
-    )
+    treeProvider.onDidChangeTreeData(() => {
+      syncFilterPresentation(treeProvider, dependencyTreeView);
+    })
   );
+  syncFilterPresentation(treeProvider, dependencyTreeView);
 
   context.subscriptions.push(
     vscode.commands.registerCommand("packageVision.refresh", async () => {
@@ -35,6 +44,41 @@ export function activate(context: vscode.ExtensionContext): void {
       treeProvider.refresh();
       vscode.window.setStatusBarMessage(
         "Package Vision refreshed dependency data.",
+        2500
+      );
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("packageVision.setFilter", async () => {
+      const selection = await vscode.window.showQuickPick(
+        buildFilterQuickPickItems(treeProvider.getFilterMode()),
+        {
+          placeHolder: "Filter dependencies by status"
+        }
+      );
+      if (!selection) {
+        return;
+      }
+
+      treeProvider.setFilterMode(selection.filterMode);
+      syncFilterPresentation(treeProvider, dependencyTreeView);
+
+      vscode.window.setStatusBarMessage(
+        selection.filterMode === "all"
+          ? "Package Vision cleared the dependency filter."
+          : `Package Vision filter: ${selection.label}`,
+        2500
+      );
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("packageVision.clearFilter", () => {
+      treeProvider.setFilterMode("all");
+      syncFilterPresentation(treeProvider, dependencyTreeView);
+      vscode.window.setStatusBarMessage(
+        "Package Vision cleared the dependency filter.",
         2500
       );
     })
@@ -248,4 +292,38 @@ async function resolvePackageManifest(
   );
 
   return selection?.manifest;
+}
+
+function buildFilterQuickPickItems(currentFilterMode: DependencyFilterMode): Array<{
+  label: string;
+  description?: string;
+  filterMode: DependencyFilterMode;
+}> {
+  const filterModes: DependencyFilterMode[] = [
+    "all",
+    "outdated",
+    "upToDate",
+    "error",
+    "unknown",
+    "upgrading"
+  ];
+
+  return filterModes.map((filterMode) => ({
+    label: formatDependencyFilterLabel(filterMode),
+    description:
+      filterMode === currentFilterMode ? "Current filter" : undefined,
+    filterMode
+  }));
+}
+
+function syncFilterPresentation(
+  treeProvider: DependencyTreeProvider,
+  dependencyTreeView: vscode.TreeView<unknown>
+): void {
+  dependencyTreeView.description = treeProvider.getFilterLabel();
+  void vscode.commands.executeCommand(
+    "setContext",
+    "packageVision.hasActiveFilter",
+    treeProvider.hasActiveFilter()
+  );
 }

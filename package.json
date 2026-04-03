@@ -20,6 +20,8 @@
   "activationEvents": [
     "onView:packageVision.dependencies",
     "onCommand:packageVision.refresh",
+    "onCommand:packageVision.setFilter",
+    "onCommand:packageVision.clearFilter",
     "onCommand:packageVision.openPackageJson",
     "onCommand:packageVision.upgradeDependency",
     "onCommand:packageVision.showOutput"
@@ -66,6 +68,16 @@
         "command": "packageVision.showOutput",
         "title": "Show Package Vision Output",
         "icon": "$(output)"
+      },
+      {
+        "command": "packageVision.setFilter",
+        "title": "Filter Dependencies",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "packageVision.clearFilter",
+        "title": "Clear Dependency Filter",
+        "icon": "$(close)"
       }
     ],
     "menus": {
@@ -83,6 +95,16 @@
         {
           "command": "packageVision.showOutput",
           "when": "view == packageVision.dependencies",
+          "group": "navigation"
+        },
+        {
+          "command": "packageVision.setFilter",
+          "when": "view == packageVision.dependencies",
+          "group": "navigation"
+        },
+        {
+          "command": "packageVision.clearFilter",
+          "when": "view == packageVision.dependencies && packageVision.hasActiveFilter",
           "group": "navigation"
         }
       ],
