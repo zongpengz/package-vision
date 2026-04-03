@@ -15,13 +15,18 @@ interface UpgradeResult {
   packageManager: PackageManagerKind;
 }
 
+interface UpgradeCommand {
+  executable: string;
+  args: string[];
+}
+
 export class PackageManagerService implements vscode.Disposable {
   private readonly outputChannel =
     vscode.window.createOutputChannel("Package Vision");
 
   constructor(private readonly packageJsonService: PackageJsonService) {}
 
-  // 第一版先只真正支持 npm。
+  // 目前自动升级已经支持 npm 和 pnpm。
   // 其他包管理器先做识别和友好报错，避免在错误的工具链上直接改项目。
   async upgradeDependency(
     dependency: DependencyRecord
@@ -32,17 +37,16 @@ export class PackageManagerService implements vscode.Disposable {
     }
 
     const packageManager = await this.detectPackageManager();
-    if (packageManager !== "npm") {
+    if (packageManager !== "npm" && packageManager !== "pnpm") {
       throw new Error(
-        `Automatic upgrades currently support npm only. Detected package manager: ${packageManager}.`
+        `Automatic upgrades currently support npm and pnpm only. Detected package manager: ${packageManager}.`
       );
     }
 
-    const executable = process.platform === "win32" ? "npm.cmd" : "npm";
-    const args =
-      dependency.section === "devDependencies"
-        ? ["install", `${dependency.name}@latest`, "--save-dev"]
-        : ["install", `${dependency.name}@latest`];
+    const { executable, args } = this.buildUpgradeCommand(
+      packageManager,
+      dependency
+    );
 
     const commandLine = [executable, ...args].join(" ");
 
@@ -99,6 +103,35 @@ export class PackageManagerService implements vscode.Disposable {
     for (const line of trimmed.split(/\r?\n/)) {
       this.outputChannel.appendLine(line);
     }
+  }
+
+  private buildUpgradeCommand(
+    packageManager: "npm" | "pnpm",
+    dependency: DependencyRecord
+  ): UpgradeCommand {
+    if (packageManager === "pnpm") {
+      const executable = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+      const args =
+        dependency.section === "devDependencies"
+          ? ["update", `${dependency.name}@latest`, "--dev"]
+          : ["update", `${dependency.name}@latest`, "--prod"];
+
+      return {
+        executable,
+        args
+      };
+    }
+
+    const executable = process.platform === "win32" ? "npm.cmd" : "npm";
+    const args =
+      dependency.section === "devDependencies"
+        ? ["install", `${dependency.name}@latest`, "--save-dev"]
+        : ["install", `${dependency.name}@latest`];
+
+    return {
+      executable,
+      args
+    };
   }
 
   private async detectPackageManager(): Promise<PackageManagerKind> {
