@@ -27,7 +27,7 @@ export class PackageManagerService implements vscode.Disposable {
 
   constructor(private readonly packageJsonService: PackageJsonService) {}
 
-  // 目前自动升级已经支持 npm、pnpm 和 yarn。
+  // 目前自动升级已经支持 npm、pnpm、yarn 和 bun。
   // 其他包管理器先做识别和友好报错，避免在错误的工具链上直接改项目。
   async upgradeDependency(
     dependency: DependencyRecord
@@ -41,17 +41,20 @@ export class PackageManagerService implements vscode.Disposable {
     if (
       packageManager !== "npm" &&
       packageManager !== "pnpm" &&
-      packageManager !== "yarn"
+      packageManager !== "yarn" &&
+      packageManager !== "bun"
     ) {
       throw new Error(
-        `Automatic upgrades currently support npm, pnpm, and yarn only. Detected package manager: ${packageManager}.`
+        `Automatic upgrades currently support npm, pnpm, yarn, and bun only. Detected package manager: ${packageManager}.`
       );
     }
 
     const { executable, args } =
       packageManager === "yarn"
         ? await this.buildYarnUpgradeCommand(dependency)
-        : this.buildUpgradeCommand(packageManager, dependency);
+        : packageManager === "bun"
+          ? this.buildBunUpgradeCommand(dependency)
+          : this.buildUpgradeCommand(packageManager, dependency);
 
     const commandLine = [executable, ...args].join(" ");
 
@@ -136,6 +139,20 @@ export class PackageManagerService implements vscode.Disposable {
     return {
       executable,
       args
+    };
+  }
+
+  private buildBunUpgradeCommand(
+    dependency: DependencyRecord
+  ): UpgradeCommand {
+    // Bun 官方文档里，升级单个包到最新版本的方式是：
+    // `bun update <package> --latest`
+    // Bun 会根据 package.json 中已有的依赖分组来更新对应条目。
+    const executable = process.platform === "win32" ? "bun.exe" : "bun";
+
+    return {
+      executable,
+      args: ["update", dependency.name, "--latest"]
     };
   }
 
