@@ -71,6 +71,13 @@ export function activate(context: vscode.ExtensionContext): void {
           return;
         }
 
+        if (treeProvider.isDependencyUpgrading(dependency)) {
+          void vscode.window.showInformationMessage(
+            `${dependency.name} is already being upgraded.`
+          );
+          return;
+        }
+
         if (!dependency.latestVersion || dependency.status !== "outdated") {
           void vscode.window.showInformationMessage(
             `${dependency.name} is already up to date or cannot be upgraded automatically yet.`
@@ -88,32 +95,74 @@ export function activate(context: vscode.ExtensionContext): void {
           return;
         }
 
+        treeProvider.startUpgrade(dependency);
+
         try {
           const result = await vscode.window.withProgress(
             {
               location: vscode.ProgressLocation.Notification,
               title: `Upgrading ${dependency.name}...`
             },
-            async () => packageManagerService.upgradeDependency(dependency)
+            async (progress) => {
+              progress.report({
+                message: "Running package manager command..."
+              });
+
+              const upgradeResult =
+                await packageManagerService.upgradeDependency(dependency);
+
+              progress.report({
+                increment: 80,
+                message: "Refreshing dependency tree..."
+              });
+
+              return upgradeResult;
+            }
           );
 
           treeProvider.refresh();
-          void vscode.window.showInformationMessage(
-            `Upgraded ${dependency.name} using ${result.packageManager}.`
-          );
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Unknown error";
-          const choice = await vscode.window.showErrorMessage(
-            `Failed to upgrade ${dependency.name}: ${message}`,
-            "Show Output"
+          const choice = await vscode.window.showInformationMessage(
+            `Upgraded ${dependency.name} to ${dependency.latestVersion} using ${result.packageManager}.`,
+            "Show Output",
+            "Open package.json"
           );
 
           if (choice === "Show Output") {
             packageManagerService.showOutput();
           }
+
+          if (choice === "Open package.json") {
+            await vscode.commands.executeCommand("packageVision.openPackageJson");
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Unknown error";
+          const choice = await vscode.window.showErrorMessage(
+            `Failed to upgrade ${dependency.name}: ${message}`,
+            "Show Output",
+            "Retry"
+          );
+
+          if (choice === "Show Output") {
+            packageManagerService.showOutput();
+          }
+
+          if (choice === "Retry") {
+            await vscode.commands.executeCommand(
+              "packageVision.upgradeDependency",
+              dependency
+            );
+          }
+        } finally {
+          treeProvider.finishUpgrade(dependency);
         }
       }
     )
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("packageVision.showOutput", () => {
+      packageManagerService.showOutput();
+    })
   );
 
   context.subscriptions.push(

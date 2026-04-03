@@ -46,7 +46,9 @@ export class PackageManagerService implements vscode.Disposable {
 
     const commandLine = [executable, ...args].join(" ");
 
-    this.outputChannel.appendLine(`[Package Vision] Running: ${commandLine}`);
+    this.appendLogLine(
+      `Starting upgrade for ${dependency.name} with command: ${commandLine}`
+    );
 
     try {
       const { stdout, stderr } = await execFileAsync(executable, args, {
@@ -55,12 +57,14 @@ export class PackageManagerService implements vscode.Disposable {
       });
 
       if (stdout) {
-        this.outputChannel.appendLine(stdout.trim());
+        this.appendRawOutput(stdout);
       }
 
       if (stderr) {
-        this.outputChannel.appendLine(stderr.trim());
+        this.appendRawOutput(stderr);
       }
+
+      this.appendLogLine(`Upgrade completed for ${dependency.name}.`);
 
       return {
         commandLine,
@@ -68,9 +72,7 @@ export class PackageManagerService implements vscode.Disposable {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      this.outputChannel.appendLine(
-        `[Package Vision] Upgrade failed: ${message}`
-      );
+      this.appendLogLine(`Upgrade failed for ${dependency.name}: ${message}`);
       throw new Error(message);
     }
   }
@@ -81,6 +83,22 @@ export class PackageManagerService implements vscode.Disposable {
 
   dispose(): void {
     this.outputChannel.dispose();
+  }
+
+  private appendLogLine(message: string): void {
+    const timestamp = new Date().toLocaleTimeString();
+    this.outputChannel.appendLine(`[${timestamp}] ${message}`);
+  }
+
+  private appendRawOutput(content: string): void {
+    const trimmed = content.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    for (const line of trimmed.split(/\r?\n/)) {
+      this.outputChannel.appendLine(line);
+    }
   }
 
   private async detectPackageManager(): Promise<PackageManagerKind> {

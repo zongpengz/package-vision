@@ -20,6 +20,7 @@ export class DependencyTreeProvider
 {
   private readonly onDidChangeTreeDataEmitter =
     new vscode.EventEmitter<PackageVisionNode | undefined | void>();
+  private readonly upgradingDependencyKeys = new Set<string>();
 
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
@@ -32,6 +33,20 @@ export class DependencyTreeProvider
     this.onDidChangeTreeDataEmitter.fire();
   }
 
+  startUpgrade(dependency: DependencyRecord): void {
+    this.upgradingDependencyKeys.add(createDependencyKey(dependency));
+    this.refresh();
+  }
+
+  finishUpgrade(dependency: DependencyRecord): void {
+    this.upgradingDependencyKeys.delete(createDependencyKey(dependency));
+    this.refresh();
+  }
+
+  isDependencyUpgrading(dependency: DependencyRecord): boolean {
+    return this.upgradingDependencyKeys.has(createDependencyKey(dependency));
+  }
+
   getTreeItem(element: PackageVisionNode): vscode.TreeItem {
     return element;
   }
@@ -42,7 +57,11 @@ export class DependencyTreeProvider
     if (element instanceof DependencySectionItem) {
       // 当 VS Code 展开一个分组节点时，会再次调用 getChildren(section)。
       return element.dependencies.map(
-        (dependency) => new DependencyItem(dependency)
+        (dependency) =>
+          new DependencyItem(
+            dependency,
+            this.isDependencyUpgrading(dependency)
+          )
       );
     }
 
@@ -117,7 +136,15 @@ export class DependencyTreeProvider
           return undefined;
         }
 
-        return new DependencySectionItem(section, sectionDependencies);
+        const upgradingCount = sectionDependencies.filter((dependency) =>
+          this.isDependencyUpgrading(dependency)
+        ).length;
+
+        return new DependencySectionItem(
+          section,
+          sectionDependencies,
+          upgradingCount
+        );
       })
       .filter(
         (item): item is DependencySectionItem => item !== undefined
@@ -128,7 +155,8 @@ export class DependencyTreeProvider
 class DependencySectionItem extends vscode.TreeItem {
   constructor(
     readonly section: DependencySection,
-    readonly dependencies: DependencyRecord[]
+    readonly dependencies: DependencyRecord[],
+    upgradingCount: number
   ) {
     super(
       formatSectionLabel(section),
@@ -140,34 +168,46 @@ class DependencySectionItem extends vscode.TreeItem {
     ).length;
 
     // description 会直接显示在侧边栏右侧，适合放“这个分组里有多少过时依赖”这种摘要信息。
-    this.description =
-      outdatedCount > 0
-        ? `${outdatedCount} outdated / ${dependencies.length}`
-        : `${dependencies.length} packages`;
+    this.description = formatSectionDescription(
+      dependencies.length,
+      outdatedCount,
+      upgradingCount
+    );
     this.contextValue = "dependencySection";
     this.tooltip = [
       `${formatSectionLabel(section)}`,
       `${dependencies.length} total`,
-      `${outdatedCount} outdated`
+      `${outdatedCount} outdated`,
+      `${upgradingCount} upgrading`
     ].join(" • ");
   }
 }
 
 class DependencyItem extends vscode.TreeItem {
-  constructor(readonly dependency: DependencyRecord) {
+  constructor(
+    readonly dependency: DependencyRecord,
+    private readonly isUpgrading: boolean
+  ) {
     super(dependency.name, vscode.TreeItemCollapsibleState.None);
 
     // TreeItem 的 description 空间比较有限，所以这里只放一行最关键的信息。
-    this.description = formatDependencyDescription(dependency);
-    this.contextValue =
-      dependency.status === "outdated" ? "dependencyOutdated" : "dependency";
+    this.description = formatDependencyDescription(dependency, isUpgrading);
+    this.contextValue = isUpgrading
+      ? "dependencyUpgrading"
+      : dependency.status === "outdated"
+        ? "dependencyOutdated"
+        : "dependency";
     this.tooltip = new vscode.MarkdownString(
-      buildDependencyTooltipLines(dependency).join("\n")
+      buildDependencyTooltipLines(dependency, isUpgrading).join("\n")
     );
-    this.iconPath = getDependencyIcon(dependency.status);
+    this.iconPath = getDependencyIcon(dependency.status, isUpgrading);
 
     // 过时依赖可以直接点击触发升级确认，减少来回切换命令面板的成本。
-    if (dependency.status === "outdated" && dependency.latestVersion) {
+    if (
+      !isUpgrading &&
+      dependency.status === "outdated" &&
+      dependency.latestVersion
+    ) {
       this.command = {
         command: "packageVision.upgradeDependency",
         title: "Upgrade Dependency",
@@ -191,7 +231,38 @@ function formatSectionLabel(section: DependencySection): string {
   return section === "dependencies" ? "Dependencies" : "Dev Dependencies";
 }
 
-function formatDependencyDescription(dependency: DependencyRecord): string {
+function formatSectionDescription(
+  total: number,
+  outdatedCount: number,
+  upgradingCount: number
+): string {
+  const parts: string[] = [];
+
+  if (upgradingCount > 0) {
+    parts.push(`${upgradingCount} upgrading`);
+  }
+
+  if (outdatedCount > 0) {
+    parts.push(`${outdatedCount} outdated`);
+  }
+
+  if (parts.length === 0) {
+    parts.push(`${total} packages`);
+  } else {
+    parts.push(`${total} total`);
+  }
+
+  return parts.join(" • ");
+}
+
+function formatDependencyDescription(
+  dependency: DependencyRecord,
+  isUpgrading: boolean
+): string {
+  if (isUpgrading) {
+    return `Upgrading to ${dependency.latestVersion ?? "latest"}...`;
+  }
+
   if (dependency.latestVersion) {
     return `${dependency.declaredVersion} -> ${dependency.latestVersion}`;
   }
@@ -200,7 +271,8 @@ function formatDependencyDescription(dependency: DependencyRecord): string {
 }
 
 function buildDependencyTooltipLines(
-  dependency: DependencyRecord
+  dependency: DependencyRecord,
+  isUpgrading: boolean
 ): string[] {
   const lines = [
     `**${dependency.name}**`,
@@ -213,6 +285,10 @@ function buildDependencyTooltipLines(
 
   if (dependency.errorMessage) {
     lines.push(`Issue: ${dependency.errorMessage}`);
+  }
+
+  if (isUpgrading) {
+    lines.push(`Action: Upgrade in progress. Check the output channel for logs.`);
   }
 
   if (dependency.status === "outdated" && dependency.latestVersion) {
@@ -236,8 +312,15 @@ function formatDependencyStatus(status: DependencyStatus): string {
   }
 }
 
-function getDependencyIcon(status: DependencyStatus): vscode.ThemeIcon {
+function getDependencyIcon(
+  status: DependencyStatus,
+  isUpgrading: boolean
+): vscode.ThemeIcon {
   // 这里优先使用 VS Code 内置图标，能天然继承编辑器主题风格。
+  if (isUpgrading) {
+    return new vscode.ThemeIcon("sync~spin");
+  }
+
   switch (status) {
     case "upToDate":
       return new vscode.ThemeIcon("check");
@@ -249,4 +332,8 @@ function getDependencyIcon(status: DependencyStatus): vscode.ThemeIcon {
     default:
       return new vscode.ThemeIcon("package");
   }
+}
+
+function createDependencyKey(dependency: DependencyRecord): string {
+  return `${dependency.section}:${dependency.name}`;
 }

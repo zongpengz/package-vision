@@ -21,7 +21,8 @@
     "onView:packageVision.dependencies",
     "onCommand:packageVision.refresh",
     "onCommand:packageVision.openPackageJson",
-    "onCommand:packageVision.upgradeDependency"
+    "onCommand:packageVision.upgradeDependency",
+    "onCommand:packageVision.showOutput"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -60,6 +61,11 @@
           "light": "resources/upgrade-light.svg",
           "dark": "resources/upgrade-dark.svg"
         }
+      },
+      {
+        "command": "packageVision.showOutput",
+        "title": "Show Package Vision Output",
+        "icon": "$(output)"
       }
     ],
     "menus": {
@@ -71,6 +77,11 @@
         },
         {
           "command": "packageVision.openPackageJson",
+          "when": "view == packageVision.dependencies",
+          "group": "navigation"
+        },
+        {
+          "command": "packageVision.showOutput",
           "when": "view == packageVision.dependencies",
           "group": "navigation"
         }
