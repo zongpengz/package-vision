@@ -169,6 +169,11 @@ VS Code 扩展开发最常用的调试方式是：
 - monorepo / 多 package 项目
 - 切换设置项或筛选条件后的视图变化
 
+现在这个仓库也已经补上了 Extension Host 集成测试，所以你还可以：
+
+- 执行 `npm run test:integration`
+- 或者在 Run and Debug 里直接使用 `Run Package Vision Tests`
+
 如果修改的是视图声明，有时需要执行：
 
 - `Developer: Reload Window`
@@ -185,6 +190,7 @@ VS Code 扩展开发最常用的调试方式是：
 6. 单包升级完成
 7. monorepo / 多 `package.json` 支持完成
 8. 设置项、筛选和测试完成
+9. Extension Host 集成测试完成
 
 这样回头复盘时，你会非常清楚自己是如何把一个插件做出来的。
 
@@ -243,7 +249,7 @@ vsce package
 
 1. 先按 `F5` 手工验证这些能力
 2. 再读代码和测试，理解每层职责
-3. 然后补 Extension Host 集成测试或准备打包发布
+3. 然后继续补更多集成测试，或者准备打包发布
 
 ## 13. 参考资料
 

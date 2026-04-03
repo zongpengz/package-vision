@@ -368,10 +368,20 @@ package 项：
 
 ## 13. 测试策略
 
-当前仓库优先使用“纯逻辑单元测试”：
+当前仓库采用“两层测试”：
+
+### 13.1 纯逻辑单元测试
 
 - 把包管理器命令构造、版本范围处理、筛选逻辑拆成纯函数
 - 用 `tsx --test` 跑单元测试
-- 用 `npm run check` 串联 compile + test
+- 用 `npm run check` 串联 compile + unit test
 
-这样测试不依赖 VS Code Extension Host，执行更快，也更适合当前迭代节奏。
+这层测试不依赖 VS Code Extension Host，执行更快，适合日常迭代。
+
+### 13.2 Extension Host 集成测试
+
+- 用 `@vscode/test-electron` 启动专门的 VS Code 实例
+- 用 Mocha 运行 `src/test/suite/*.test.ts`
+- 用 fixture 工作区验证扩展命令、工作区扫描和 Tree View 主链路
+
+这层测试更慢，但能覆盖“扩展是否真的在 VS Code 里按预期工作”。

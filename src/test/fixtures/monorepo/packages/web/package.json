@@ -1,0 +1,10 @@
+{
+  "name": "@fixture/web",
+  "private": true,
+  "dependencies": {
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}
