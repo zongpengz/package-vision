@@ -11,6 +11,10 @@
 - 已配置 `publisher`、`repository`、`homepage`、`bugs`、`license`
 - 已补充 Marketplace 用的 `icon`、`galleryBanner`、`categories`、`keywords`
 - 已有面向用户的 `README.md`
+- 已准备 Marketplace 截图资源
+  - `docs/images/marketplace/overview.png`
+  - `docs/images/marketplace/filter-outdated.png`
+  - `docs/images/marketplace/upgrade-single-package.png`
 - 已新增 `CHANGELOG.md`
 - 已完成本地 `vsce package` 打包验证
 - 已完成本地 VSIX 安装验证
@@ -40,7 +44,7 @@
 
 ## 首次发布前建议再检查的事项
 
-- 截图或录屏是否已经准备好
+- 截图在 Marketplace 页面里的展示顺序是否满意
 - README 首页是否足够像插件介绍页，而不是仓库维护说明
 - 是否要把首个公开版本标记为 `preview`
 - 发布版本号是否仍然保持 `0.0.1`
@@ -56,10 +60,20 @@
 4. 运行登录命令
    - `vsce login zongpengz`
 5. 本地再次验证
-   - `npm run check:full`
-   - `vsce package`
+   - `npm run check`
+   - `npx @vscode/vsce package`
 6. 正式发布
    - `vsce publish`
+
+## 当前更稳的发布门槛
+
+目前建议把下面 3 项作为正式发布前的硬门槛：
+
+1. `npm run check`
+2. `npx @vscode/vsce package`
+3. 本机安装生成的 `.vsix`，手动检查截图中展示的核心流程
+
+`npm run check:full` 暂时不建议作为本次发布前的硬门槛，因为当前的 Extension Host 集成测试 runner 在本机上还有单独的 CLI 启动问题，需要后续单独排查。
 
 ## 可选的手动发布方式
 

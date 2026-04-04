@@ -15,9 +15,9 @@
 
 当前还建议你在正式发布前补齐 3 个非代码项：
 
-- Marketplace 截图或录屏
 - 是否以 `preview` 身份首发
 - 最终版本号是否继续使用 `0.0.1`
+- Marketplace 页面里截图的展示顺序是否满意
 
 ## 已完成的发布准备
 
@@ -25,6 +25,10 @@
 - [x] `repository`、`homepage`、`bugs`、`license` 已配置
 - [x] `description`、`categories`、`keywords` 已补齐
 - [x] Marketplace 图标已配置为 PNG
+- [x] Marketplace 截图已准备
+  - `docs/images/marketplace/overview.png`
+  - `docs/images/marketplace/filter-outdated.png`
+  - `docs/images/marketplace/upgrade-single-package.png`
 - [x] `galleryBanner` 已配置
 - [x] `README.md` 已收敛为用户导向
 - [x] `CHANGELOG.md` 已创建
@@ -33,13 +37,14 @@
 
 ## 发布前必须确认
 
-- [ ] 准备至少 1 张能说明核心价值的截图
-- [ ] 最好再准备 1 张筛选视图截图
-- [ ] 如果要强调升级体验，再准备 1 张单包升级截图或短录屏
+- [x] 已准备主视图截图
+- [x] 已准备筛选视图截图
+- [x] 已准备单包升级截图
 - [ ] 决定首个公开版本是否设置 `preview: true`
 - [ ] 确认本次版本号是 `0.0.1` 还是提升到 `0.1.0`
 - [ ] 再通读一次 `README.md` 的开头 2 屏，确保像插件介绍页
 - [ ] 再通读一次 `CHANGELOG.md`，确认它和这次准备发布的功能一致
+- [ ] 确认 README 里的截图顺序和实际想突出展示的卖点一致
 
 ## 发布前建议执行的验证
 

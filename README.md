@@ -28,6 +28,12 @@ Package Vision 把依赖巡检和单包升级带到 VS Code 左侧栏。
 3. 需要时用顶部筛选按钮快速缩小范围
 4. 点击过时依赖，确认后执行升级
 
+## Screenshots
+
+![Overview](./docs/images/marketplace/overview.png)
+![Filter outdated packages](./docs/images/marketplace/filter-outdated.png)
+![Upgrade single package](./docs/images/marketplace/upgrade-single-package.png)
+
 ## 设置项
 
 当前提供一个设置项：
