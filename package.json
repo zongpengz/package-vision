@@ -2,7 +2,7 @@
   "name": "package-vision",
   "displayName": "Package Vision",
   "description": "Inspect dependency versions, filter outdated packages, and upgrade them from the VS Code sidebar.",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "zongpengz",
   "license": "MIT",
   "repository": {

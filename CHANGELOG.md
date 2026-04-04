@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0
+
+- Added major-aware upgrade flows with `ask`, `safe`, and `latest` strategies.
+- Added an explicit latest-major upgrade action through inline icons and the context menu.
+- Improved outdated detection so ranges like `^1.7.10` still surface newer patch and minor upgrades.
+- Refreshed Marketplace screenshots and upgrade-action documentation.
+
 ## 0.0.1
 
 - Added a dedicated Activity Bar entry for dependency inspection.
