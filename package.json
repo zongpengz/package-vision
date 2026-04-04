@@ -210,13 +210,16 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
+    "typecheck:src": "tsc -p ./ --noEmit",
+    "typecheck:tests": "tsc -p tsconfig.tests.json",
+    "typecheck": "npm run typecheck:src && npm run typecheck:tests",
     "compile": "tsc -p ./",
     "watch": "tsc --watch -p ./",
     "test": "npm run test:unit",
     "test:unit": "tsx --test tests/**/*.test.ts",
     "pretest:integration": "npm run compile",
     "test:integration": "node ./out/test/runTest.js",
-    "check": "npm run compile && npm run test:unit",
+    "check": "npm run typecheck && npm run compile && npm run test:unit",
     "check:full": "npm run check && npm run test:integration"
   },
   "devDependencies": {
