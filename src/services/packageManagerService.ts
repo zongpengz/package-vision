@@ -25,6 +25,7 @@ interface UpgradeResult {
   commandLine: string;
   packageManager: PackageManagerExecutionContext["packageManager"];
   savedVersionRange: string;
+  targetVersion: string;
 }
 
 export class PackageManagerService implements vscode.Disposable {
@@ -36,7 +37,8 @@ export class PackageManagerService implements vscode.Disposable {
   // 目前自动升级已经支持 npm、pnpm、yarn 和 bun。
   // 其他包管理器先做识别和友好报错，避免在错误的工具链上直接改项目。
   async upgradeDependency(
-    dependency: DependencyRecord
+    dependency: DependencyRecord,
+    targetVersion: string
   ): Promise<UpgradeResult> {
     const executionContext = await this.resolveExecutionContext(dependency);
     if (!executionContext) {
@@ -65,10 +67,11 @@ export class PackageManagerService implements vscode.Disposable {
     const resolvedVersionRange = resolveVersionRangeStyle(
       versionRangeStyle,
       dependency.declaredVersion,
-      dependency.latestVersion ?? dependency.declaredVersion
+      targetVersion
     );
     const { executable, args, cwdPath } = buildUpgradeCommand({
       dependency,
+      targetVersion,
       executionContext,
       yarnVariant
     });
@@ -106,7 +109,8 @@ export class PackageManagerService implements vscode.Disposable {
       return {
         commandLine,
         packageManager,
-        savedVersionRange
+        savedVersionRange,
+        targetVersion
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";

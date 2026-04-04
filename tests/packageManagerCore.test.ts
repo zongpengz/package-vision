@@ -73,6 +73,7 @@ test("buildUpgradeCommand creates an npm workspace command for nested devDepende
 
   const command = buildUpgradeCommand({
     dependency,
+    targetVersion: "18.3.1",
     executionContext: context,
     platform: "darwin"
   });
@@ -80,7 +81,7 @@ test("buildUpgradeCommand creates an npm workspace command for nested devDepende
   assert.equal(command.executable, "npm");
   assert.deepEqual(command.args, [
     "install",
-    "react@latest",
+    "react@18.3.1",
     "--save-dev",
     "--workspace",
     "packages/web"
@@ -107,6 +108,7 @@ test("buildUpgradeCommand creates a pnpm filter command for nested packages", ()
 
   const command = buildUpgradeCommand({
     dependency,
+    targetVersion: "18.3.1",
     executionContext: context,
     platform: "darwin"
   });
@@ -114,9 +116,8 @@ test("buildUpgradeCommand creates a pnpm filter command for nested packages", ()
   assert.deepEqual(command.args, [
     "--filter",
     "./apps/admin",
-    "update",
-    "react@latest",
-    "--prod"
+    "add",
+    "react@18.3.1"
   ]);
   assert.equal(command.cwdPath, "/repo");
 });
@@ -133,12 +134,13 @@ test("buildUpgradeCommand uses yarn up for modern yarn root projects", () => {
 
   const command = buildUpgradeCommand({
     dependency,
+    targetVersion: "18.3.1",
     executionContext: context,
     yarnVariant: "modern",
     platform: "darwin"
   });
 
-  assert.deepEqual(command.args, ["up", "react@latest"]);
+  assert.deepEqual(command.args, ["up", "react@18.3.1"]);
   assert.equal(command.cwdPath, "/repo");
 });
 
@@ -163,6 +165,7 @@ test("buildUpgradeCommand uses yarn workspace add inside a monorepo package", ()
 
   const command = buildUpgradeCommand({
     dependency,
+    targetVersion: "18.3.1",
     executionContext: context,
     platform: "darwin"
   });
@@ -172,7 +175,7 @@ test("buildUpgradeCommand uses yarn workspace add inside a monorepo package", ()
     "@repo/web",
     "add",
     "-D",
-    "react@latest"
+    "react@18.3.1"
   ]);
 });
 
@@ -195,11 +198,12 @@ test("buildUpgradeCommand runs bun upgrades in the package directory", () => {
 
   const command = buildUpgradeCommand({
     dependency,
+    targetVersion: "18.3.1",
     executionContext: context,
     platform: "darwin"
   });
 
-  assert.deepEqual(command.args, ["update", "react", "--latest"]);
+  assert.deepEqual(command.args, ["add", "react@18.3.1"]);
   assert.equal(command.cwdPath, "/repo/packages/api");
 });
 

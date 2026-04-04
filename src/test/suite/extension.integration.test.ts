@@ -24,6 +24,7 @@ suite("Package Vision Extension Host", () => {
     assert.ok(commands.includes("packageVision.setFilter"));
     assert.ok(commands.includes("packageVision.clearFilter"));
     assert.ok(commands.includes("packageVision.upgradeDependency"));
+    assert.ok(commands.includes("packageVision.upgradeDependencyToLatestMajor"));
     assert.ok(commands.includes("packageVision.showOutput"));
   });
 
@@ -123,12 +124,16 @@ function createStubRegistryService(): RegistryService {
             return {
               ...dependency,
               latestVersion: "19.0.0",
+              latestSafeVersion: "18.3.1",
+              hasMajorUpdate: true,
               status: "outdated" as const
             };
           case "zod":
             return {
               ...dependency,
               latestVersion: "4.0.0",
+              latestSafeVersion: "3.23.8",
+              hasMajorUpdate: true,
               status: "outdated" as const
             };
           case "typescript":

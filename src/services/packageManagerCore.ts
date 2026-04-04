@@ -29,6 +29,7 @@ export interface PackageManagerExecutionContext {
 
 interface BuildUpgradeCommandInput {
   dependency: DependencyRecord;
+  targetVersion: string;
   executionContext: PackageManagerExecutionContext;
   yarnVariant?: YarnVariant;
   platform?: NodeJS.Platform;
@@ -127,6 +128,7 @@ export function normalizeRelativePath(relativePath: string): string {
 
 function buildNpmUpgradeCommand({
   dependency,
+  targetVersion,
   executionContext,
   platform
 }: BuildUpgradeCommandInput): UpgradeCommand {
@@ -137,14 +139,14 @@ function buildNpmUpgradeCommand({
       dependency.section === "devDependencies"
         ? [
             "install",
-            `${dependency.name}@latest`,
+            `${dependency.name}@${targetVersion}`,
             "--save-dev",
             "--workspace",
             executionContext.workspaceTarget
           ]
         : [
             "install",
-            `${dependency.name}@latest`,
+            `${dependency.name}@${targetVersion}`,
             "--workspace",
             executionContext.workspaceTarget
           ];
@@ -158,8 +160,8 @@ function buildNpmUpgradeCommand({
 
   const args =
     dependency.section === "devDependencies"
-      ? ["install", `${dependency.name}@latest`, "--save-dev"]
-      : ["install", `${dependency.name}@latest`];
+      ? ["install", `${dependency.name}@${targetVersion}`, "--save-dev"]
+      : ["install", `${dependency.name}@${targetVersion}`];
 
   return {
     executable,
@@ -170,6 +172,7 @@ function buildNpmUpgradeCommand({
 
 function buildPnpmUpgradeCommand({
   dependency,
+  targetVersion,
   executionContext,
   platform
 }: BuildUpgradeCommandInput): UpgradeCommand {
@@ -181,16 +184,15 @@ function buildPnpmUpgradeCommand({
         ? [
             "--filter",
             executionContext.workspaceFilter,
-            "update",
-            `${dependency.name}@latest`,
-            "--dev"
+            "add",
+            `${dependency.name}@${targetVersion}`,
+            "--save-dev"
           ]
         : [
             "--filter",
             executionContext.workspaceFilter,
-            "update",
-            `${dependency.name}@latest`,
-            "--prod"
+            "add",
+            `${dependency.name}@${targetVersion}`
           ];
 
     return {
@@ -202,8 +204,8 @@ function buildPnpmUpgradeCommand({
 
   const args =
     dependency.section === "devDependencies"
-      ? ["update", `${dependency.name}@latest`, "--dev"]
-      : ["update", `${dependency.name}@latest`, "--prod"];
+      ? ["add", `${dependency.name}@${targetVersion}`, "--save-dev"]
+      : ["add", `${dependency.name}@${targetVersion}`];
 
   return {
     executable,
@@ -214,6 +216,7 @@ function buildPnpmUpgradeCommand({
 
 function buildYarnUpgradeCommand({
   dependency,
+  targetVersion,
   executionContext,
   yarnVariant,
   platform
@@ -230,8 +233,8 @@ function buildYarnUpgradeCommand({
 
     const args =
       dependency.section === "devDependencies"
-        ? ["workspace", workspaceName, "add", "-D", `${dependency.name}@latest`]
-        : ["workspace", workspaceName, "add", `${dependency.name}@latest`];
+        ? ["workspace", workspaceName, "add", "-D", `${dependency.name}@${targetVersion}`]
+        : ["workspace", workspaceName, "add", `${dependency.name}@${targetVersion}`];
 
     return {
       executable,
@@ -247,24 +250,28 @@ function buildYarnUpgradeCommand({
   return yarnVariant === "modern"
     ? {
         executable,
-        args: ["up", `${dependency.name}@latest`],
+        args: ["up", `${dependency.name}@${targetVersion}`],
         cwdPath: executionContext.commandCwdPath
       }
     : {
         executable,
-        args: ["upgrade", dependency.name, "--latest"],
+        args: ["upgrade", `${dependency.name}@${targetVersion}`],
         cwdPath: executionContext.commandCwdPath
       };
 }
 
 function buildBunUpgradeCommand({
   dependency,
+  targetVersion,
   executionContext,
   platform
 }: BuildUpgradeCommandInput): UpgradeCommand {
   return {
     executable: platform === "win32" ? "bun.exe" : "bun",
-    args: ["update", dependency.name, "--latest"],
+    args:
+      dependency.section === "devDependencies"
+        ? ["add", "-d", `${dependency.name}@${targetVersion}`]
+        : ["add", `${dependency.name}@${targetVersion}`],
     cwdPath: executionContext.packageDirPath
   };
 }

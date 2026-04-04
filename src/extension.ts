@@ -1,10 +1,18 @@
 import * as vscode from "vscode";
 import * as path from "node:path";
+import * as semver from "semver";
 
+import { getMajorUpdateStrategy } from "./configuration";
 import { DependencyRecord, PackageManifestRecord } from "./models/dependency";
 import { PackageManagerService } from "./services/packageManagerService";
 import { PackageJsonService } from "./services/packageJsonService";
+import { getComparableDeclaredVersion } from "./services/registryUtils";
 import { RegistryService } from "./services/registryService";
+import {
+  buildMajorAwareUpgradeChoices,
+  getSafeUpgradeTargetVersion,
+  UpgradeChoice
+} from "./services/upgradeStrategyUtils";
 import { DependencyTreeProvider } from "./views/dependencyTreeProvider";
 import {
   DependencyFilterMode,
@@ -112,104 +120,26 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand(
       "packageVision.upgradeDependency",
       async (target: unknown) => {
-        const dependency = resolveDependencyRecord(target);
-        if (!dependency) {
-          void vscode.window.showWarningMessage(
-            "Package Vision could not determine which dependency to upgrade."
-          );
-          return;
-        }
-
-        if (treeProvider.isDependencyUpgrading(dependency)) {
-          void vscode.window.showInformationMessage(
-            `${dependency.name} is already being upgraded.`
-          );
-          return;
-        }
-
-        if (!dependency.latestVersion || dependency.status !== "outdated") {
-          void vscode.window.showInformationMessage(
-            `${dependency.name} is already up to date or cannot be upgraded automatically yet.`
-          );
-          return;
-        }
-
-        const confirmAction = await vscode.window.showInformationMessage(
-          `Upgrade ${dependency.name} from ${dependency.declaredVersion} to ${dependency.latestVersion}? This will update package.json and lock files.`,
-          { modal: true },
-          "Upgrade"
+        await handleUpgradeCommand(
+          target,
+          "default",
+          treeProvider,
+          packageManagerService
         );
+      }
+    )
+  );
 
-        if (confirmAction !== "Upgrade") {
-          return;
-        }
-
-        treeProvider.startUpgrade(dependency);
-        let upgradeStateCleared = false;
-
-        try {
-          const result = await vscode.window.withProgress(
-            {
-              location: vscode.ProgressLocation.Notification,
-              title: `Upgrading ${dependency.name}...`
-            },
-            async (progress) => {
-              progress.report({
-                message: "Running package manager command..."
-              });
-
-              const upgradeResult =
-                await packageManagerService.upgradeDependency(dependency);
-
-              progress.report({
-                increment: 80,
-                message: "Refreshing dependency tree..."
-              });
-
-              return upgradeResult;
-            }
-          );
-
-          treeProvider.finishUpgrade(dependency);
-          upgradeStateCleared = true;
-          const choice = await vscode.window.showInformationMessage(
-            `Upgraded ${dependency.name} to ${dependency.latestVersion} using ${result.packageManager}. Saved as ${result.savedVersionRange}.`,
-            "Show Output",
-            "Open package.json"
-          );
-
-          if (choice === "Show Output") {
-            packageManagerService.showOutput();
-          }
-
-          if (choice === "Open package.json") {
-            await vscode.commands.executeCommand("packageVision.openPackageJson");
-          }
-        } catch (error) {
-          treeProvider.finishUpgrade(dependency);
-          upgradeStateCleared = true;
-          const message = error instanceof Error ? error.message : "Unknown error";
-          const choice = await vscode.window.showErrorMessage(
-            `Failed to upgrade ${dependency.name}: ${message}`,
-            "Show Output",
-            "Retry"
-          );
-
-          if (choice === "Show Output") {
-            packageManagerService.showOutput();
-          }
-
-          if (choice === "Retry") {
-            await vscode.commands.executeCommand(
-              "packageVision.upgradeDependency",
-              dependency
-            );
-          }
-        } finally {
-          if (!upgradeStateCleared) {
-            treeProvider.finishUpgrade(dependency);
-          }
-        }
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "packageVision.upgradeDependencyToLatestMajor",
+      async (target: unknown) => {
+        await handleUpgradeCommand(
+          target,
+          "latestMajor",
+          treeProvider,
+          packageManagerService
+        );
       }
     )
   );
@@ -235,6 +165,249 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {}
+
+async function handleUpgradeCommand(
+  target: unknown,
+  mode: "default" | "latestMajor",
+  treeProvider: DependencyTreeProvider,
+  packageManagerService: PackageManagerService
+): Promise<void> {
+  const dependency = resolveDependencyRecord(target);
+  if (!dependency) {
+    void vscode.window.showWarningMessage(
+      "Package Vision could not determine which dependency to upgrade."
+    );
+    return;
+  }
+
+  if (treeProvider.isDependencyUpgrading(dependency)) {
+    void vscode.window.showInformationMessage(
+      `${dependency.name} is already being upgraded.`
+    );
+    return;
+  }
+
+  if (!dependency.latestVersion || dependency.status !== "outdated") {
+    void vscode.window.showInformationMessage(
+      `${dependency.name} is already up to date or cannot be upgraded automatically yet.`
+    );
+    return;
+  }
+
+  const upgradeChoice = await resolveUpgradeChoice(dependency, mode);
+  if (!upgradeChoice) {
+    return;
+  }
+
+  const confirmAction = await vscode.window.showInformationMessage(
+    buildUpgradeConfirmationMessage(dependency, upgradeChoice),
+    { modal: true },
+    upgradeChoice.isMajorUpdate ? "Upgrade Major Version" : "Upgrade"
+  );
+
+  if (
+    confirmAction !== "Upgrade" &&
+    confirmAction !== "Upgrade Major Version"
+  ) {
+    return;
+  }
+
+  treeProvider.startUpgrade(dependency);
+  let upgradeStateCleared = false;
+
+  try {
+    const result = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Upgrading ${dependency.name}...`
+      },
+      async (progress) => {
+        progress.report({
+          message: `Running package manager command for ${upgradeChoice.targetVersion}...`
+        });
+
+        const upgradeResult = await packageManagerService.upgradeDependency(
+          dependency,
+          upgradeChoice.targetVersion
+        );
+
+        progress.report({
+          increment: 80,
+          message: "Refreshing dependency tree..."
+        });
+
+        return upgradeResult;
+      }
+    );
+
+    treeProvider.finishUpgrade(dependency);
+    upgradeStateCleared = true;
+    const choice = await vscode.window.showInformationMessage(
+      `Upgraded ${dependency.name} to ${result.targetVersion} using ${result.packageManager}. Saved as ${result.savedVersionRange}.`,
+      "Show Output",
+      "Open package.json"
+    );
+
+    if (choice === "Show Output") {
+      packageManagerService.showOutput();
+    }
+
+    if (choice === "Open package.json") {
+      await vscode.commands.executeCommand("packageVision.openPackageJson");
+    }
+  } catch (error) {
+    treeProvider.finishUpgrade(dependency);
+    upgradeStateCleared = true;
+    const message = error instanceof Error ? error.message : "Unknown error";
+    const choice = await vscode.window.showErrorMessage(
+      `Failed to upgrade ${dependency.name}: ${message}`,
+      "Show Output",
+      "Retry"
+    );
+
+    if (choice === "Show Output") {
+      packageManagerService.showOutput();
+    }
+
+    if (choice === "Retry") {
+      await vscode.commands.executeCommand(
+        mode === "latestMajor"
+          ? "packageVision.upgradeDependencyToLatestMajor"
+          : "packageVision.upgradeDependency",
+        dependency
+      );
+    }
+  } finally {
+    if (!upgradeStateCleared) {
+      treeProvider.finishUpgrade(dependency);
+    }
+  }
+}
+
+async function resolveUpgradeChoice(
+  dependency: DependencyRecord,
+  mode: "default" | "latestMajor"
+): Promise<UpgradeChoice | undefined> {
+  if (mode === "latestMajor") {
+    if (!dependency.hasMajorUpdate || !dependency.latestVersion) {
+      void vscode.window.showInformationMessage(
+        `${dependency.name} does not currently have a newer major version to upgrade to.`
+      );
+      return undefined;
+    }
+
+    return {
+      upgradeKind: "latestMajor",
+      targetVersion: dependency.latestVersion,
+      label: `Upgrade to latest major ${dependency.latestVersion}`,
+      description: "May include breaking changes",
+      detail:
+        "Use this when you intentionally want the newest published major version.",
+      isMajorUpdate: true
+    };
+  }
+
+  const configurationScope = vscode.Uri.file(
+    dependency.packageManifest.packageJsonPath
+  );
+  const strategy = getMajorUpdateStrategy(configurationScope);
+  const safeUpgradeTarget = getSafeUpgradeTargetVersion(dependency);
+
+  if (!dependency.hasMajorUpdate || !dependency.latestVersion) {
+    const targetVersion = safeUpgradeTarget ?? dependency.latestVersion;
+    if (!targetVersion) {
+      return undefined;
+    }
+
+    return {
+      upgradeKind: "latest",
+      targetVersion,
+      label: `Upgrade to ${targetVersion}`,
+      description: "Upgrade dependency",
+      detail: "Upgrade to the newest available version for this dependency.",
+      isMajorUpdate: false
+    };
+  }
+
+  switch (strategy) {
+    case "latest":
+      return {
+        upgradeKind: "latestMajor",
+        targetVersion: dependency.latestVersion,
+        label: `Upgrade to latest major ${dependency.latestVersion}`,
+        description: "Uses the newest published version",
+        detail: "This may include breaking changes.",
+        isMajorUpdate: true
+      };
+    case "safe":
+      if (safeUpgradeTarget) {
+        return {
+          upgradeKind: "safe",
+          targetVersion: safeUpgradeTarget,
+          label: `Upgrade within current major to ${safeUpgradeTarget}`,
+          description: "Recommended safe default",
+          detail: "Keeps the current major version when possible.",
+          isMajorUpdate: false
+        };
+      }
+
+      {
+        const action = await vscode.window.showInformationMessage(
+          `${dependency.name} has no newer version within the current major. Use "Upgrade to Latest Major" from the inline action or context menu, or change packageVision.upgrade.majorUpdateStrategy if you want to allow major upgrades by default.`,
+          "Open Settings"
+        );
+
+        if (action === "Open Settings") {
+          await vscode.commands.executeCommand(
+            "workbench.action.openSettings",
+            "packageVision.upgrade.majorUpdateStrategy"
+          );
+        }
+      }
+
+      return undefined;
+    case "ask":
+    default: {
+      const choices = buildMajorAwareUpgradeChoices(dependency);
+      if (choices.length === 1) {
+        return choices[0];
+      }
+
+      const selection = await vscode.window.showQuickPick(
+        choices.map((choice) => ({
+          label: choice.label,
+          description: choice.description,
+          detail: choice.detail,
+          upgradeChoice: choice
+        })),
+        {
+          placeHolder: `Choose how to upgrade ${dependency.name}`
+        }
+      );
+
+      return selection?.upgradeChoice;
+    }
+  }
+}
+
+function buildUpgradeConfirmationMessage(
+  dependency: DependencyRecord,
+  upgradeChoice: UpgradeChoice
+): string {
+  if (upgradeChoice.isMajorUpdate) {
+    return `Upgrade ${dependency.name} from ${dependency.declaredVersion} to ${upgradeChoice.targetVersion}? This is a major version change and may require code updates. Package Vision will update package.json and lock files.`;
+  }
+
+  const comparableDeclaredVersion = getComparableDeclaredVersion(
+    dependency.declaredVersion
+  );
+  const sameMajorMessage =
+    comparableDeclaredVersion && semver.valid(upgradeChoice.targetVersion)
+      ? `This stays on major ${semver.major(comparableDeclaredVersion)}. `
+      : "";
+
+  return `Upgrade ${dependency.name} from ${dependency.declaredVersion} to ${upgradeChoice.targetVersion}? ${sameMajorMessage}Package Vision will update package.json and lock files.`;
+}
 
 function resolveDependencyRecord(target: unknown): DependencyRecord | undefined {
   if (isDependencyRecord(target)) {

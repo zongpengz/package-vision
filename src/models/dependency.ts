@@ -23,6 +23,8 @@ export interface DependencyRecord {
   declaredVersion: string;
   packageManifest: PackageManifestRecord;
   latestVersion?: string;
+  latestSafeVersion?: string;
+  hasMajorUpdate?: boolean;
   status: DependencyStatus;
   errorMessage?: string;
 }

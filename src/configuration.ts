@@ -1,11 +1,16 @@
 import * as vscode from "vscode";
 
 import {
+  MajorUpdateStrategy,
+  normalizeMajorUpdateStrategy
+} from "./services/upgradeStrategyUtils";
+import {
   VersionRangeStyle,
   normalizeConfiguredVersionRangeStyle
 } from "./services/versionRangeUtils";
 
 const CONFIGURATION_NAMESPACE = "packageVision";
+const MAJOR_UPDATE_STRATEGY_SETTING = "upgrade.majorUpdateStrategy";
 const VERSION_RANGE_STYLE_SETTING = "upgrade.versionRangeStyle";
 
 export function getUpgradeVersionRangeStyle(
@@ -16,4 +21,14 @@ export function getUpgradeVersionRangeStyle(
     .get<string>(VERSION_RANGE_STYLE_SETTING);
 
   return normalizeConfiguredVersionRangeStyle(configuredValue);
+}
+
+export function getMajorUpdateStrategy(
+  scope?: vscode.ConfigurationScope
+): MajorUpdateStrategy {
+  const configuredValue = vscode.workspace
+    .getConfiguration(CONFIGURATION_NAMESPACE, scope)
+    .get<string>(MAJOR_UPDATE_STRATEGY_SETTING);
+
+  return normalizeMajorUpdateStrategy(configuredValue);
 }

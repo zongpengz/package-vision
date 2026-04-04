@@ -24,6 +24,7 @@
 当前重点覆盖：
 
 - 版本状态判断，例如 `upToDate` / `outdated` / `unknown`
+- 大版本升级策略和安全目标推导
 - package manifest 的组装和依赖展开
 - monorepo 场景下各个包管理器的升级命令构造
 - 升级后的版本范围写回策略

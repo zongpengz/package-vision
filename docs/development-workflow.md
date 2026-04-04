@@ -131,7 +131,7 @@ npx --package yo --package generator-code -- yo code
 
 - 增加空状态
 - 增加错误提示
-- 增加右键菜单
+- 增加包项操作入口
 - 增加输出日志
 
 ### 6.8 阶段八：支持 monorepo 和多个 package.json

@@ -1,16 +1,23 @@
 import * as https from "node:https";
+import * as semver from "semver";
 
 import { DependencyRecord } from "../models/dependency";
-import { determineDependencyStatus } from "./registryUtils";
+import {
+  determineDependencyStatus,
+  findLatestVersionInCurrentMajor,
+  hasMajorUpdate
+} from "./registryUtils";
 
 interface RegistryMetadata {
   "dist-tags"?: {
     latest?: string;
   };
+  versions?: Record<string, unknown>;
 }
 
 interface CachedVersion {
   latestVersion: string;
+  stableVersions: string[];
   fetchedAt: number;
 }
 
@@ -39,7 +46,16 @@ export class RegistryService {
     dependency: DependencyRecord
   ): Promise<DependencyRecord> {
     try {
-      const latestVersion = await this.getLatestVersion(dependency.name);
+      const { latestVersion, stableVersions } =
+        await this.getPackageVersions(dependency.name);
+      const latestSafeVersion = findLatestVersionInCurrentMajor(
+        dependency.declaredVersion,
+        stableVersions
+      );
+      const dependencyHasMajorUpdate = hasMajorUpdate(
+        dependency.declaredVersion,
+        latestVersion
+      );
       // declaredVersion 可能是 ^1.2.3、~1.2.3、workspace:* 等形式，
       // 所以这里单独做一次 semver 判断，而不是直接比较字符串。
       const status = determineDependencyStatus(
@@ -50,6 +66,8 @@ export class RegistryService {
       return {
         ...dependency,
         latestVersion,
+        latestSafeVersion,
+        hasMajorUpdate: dependencyHasMajorUpdate,
         status,
         errorMessage:
           status === "unknown"
@@ -67,10 +85,15 @@ export class RegistryService {
     }
   }
 
-  private async getLatestVersion(packageName: string): Promise<string> {
+  private async getPackageVersions(
+    packageName: string
+  ): Promise<{ latestVersion: string; stableVersions: string[] }> {
     const cached = this.latestVersionCache.get(packageName);
     if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
-      return cached.latestVersion;
+      return {
+        latestVersion: cached.latestVersion,
+        stableVersions: cached.stableVersions
+      };
     }
 
     // npm registry 会在 dist-tags.latest 里给出当前默认稳定版本。
@@ -79,13 +102,20 @@ export class RegistryService {
     if (!latestVersion) {
       throw new Error("npm registry did not return a latest version.");
     }
+    const stableVersions = Object.keys(metadata.versions ?? {}).filter(
+      (version): version is string => semver.valid(version) !== null
+    );
 
     this.latestVersionCache.set(packageName, {
       latestVersion,
+      stableVersions,
       fetchedAt: Date.now()
     });
 
-    return latestVersion;
+    return {
+      latestVersion,
+      stableVersions
+    };
   }
 
   private async fetchRegistryMetadata(

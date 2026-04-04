@@ -45,6 +45,7 @@
     "onCommand:packageVision.clearFilter",
     "onCommand:packageVision.openPackageJson",
     "onCommand:packageVision.upgradeDependency",
+    "onCommand:packageVision.upgradeDependencyToLatestMajor",
     "onCommand:packageVision.showOutput"
   ],
   "main": "./out/extension.js",
@@ -84,6 +85,11 @@
           "light": "resources/upgrade-light.svg",
           "dark": "resources/upgrade-dark.svg"
         }
+      },
+      {
+        "command": "packageVision.upgradeDependencyToLatestMajor",
+        "title": "Upgrade Dependency to Latest Major",
+        "icon": "$(warning)"
       },
       {
         "command": "packageVision.showOutput",
@@ -139,12 +145,48 @@
           "command": "packageVision.upgradeDependency",
           "when": "view == packageVision.dependencies && viewItem == dependencyOutdated",
           "group": "navigation"
+        },
+        {
+          "command": "packageVision.upgradeDependency",
+          "when": "view == packageVision.dependencies && viewItem == dependencyOutdatedMajor",
+          "group": "inline"
+        },
+        {
+          "command": "packageVision.upgradeDependency",
+          "when": "view == packageVision.dependencies && viewItem == dependencyOutdatedMajor",
+          "group": "navigation"
+        },
+        {
+          "command": "packageVision.upgradeDependencyToLatestMajor",
+          "when": "view == packageVision.dependencies && viewItem == dependencyOutdatedMajor",
+          "group": "inline@2"
+        },
+        {
+          "command": "packageVision.upgradeDependencyToLatestMajor",
+          "when": "view == packageVision.dependencies && viewItem == dependencyOutdatedMajor",
+          "group": "navigation"
         }
       ]
     },
     "configuration": {
       "title": "Package Vision",
       "properties": {
+        "packageVision.upgrade.majorUpdateStrategy": {
+          "type": "string",
+          "default": "ask",
+          "scope": "resource",
+          "enum": [
+            "ask",
+            "safe",
+            "latest"
+          ],
+          "enumDescriptions": [
+            "When a newer major version exists, ask whether to stay within the current major or jump to the latest major.",
+            "Default upgrades stay within the current major when possible. Use the inline action or context menu to explicitly jump to the latest major.",
+            "Default upgrades always use the latest published version, even when it is a major upgrade."
+          ],
+          "markdownDescription": "Controls how Package Vision handles major version upgrades."
+        },
         "packageVision.upgrade.versionRangeStyle": {
           "type": "string",
           "default": "preserve",

@@ -34,7 +34,7 @@
 - 风格和 VS Code 内置视图一致
 - 适合 package / section / dependency 的树状结构
 - 对新手更容易上手
-- 足以承载刷新、右键菜单、筛选、单包升级等操作
+- 足以承载刷新、悬浮行内操作、右键菜单、筛选、单包升级等操作
 
 即使已经加入快速筛选，这一版仍然可以稳定地用 `Tree View` 承载，不需要为了筛选就切到 `WebviewView`。
 
@@ -67,6 +67,7 @@ package-vision/
       packageManifestUtils.ts
       registryService.ts
       registryUtils.ts
+      upgradeStrategyUtils.ts
       packageManagerService.ts
       packageManagerCore.ts
       versionRangeUtils.ts
@@ -78,6 +79,7 @@ package-vision/
     packageManagerCore.test.ts
     packageManifestUtils.test.ts
     registryUtils.test.ts
+    upgradeStrategyUtils.test.ts
     versionRangeUtils.test.ts
   src/test/
     runTest.ts
@@ -160,16 +162,25 @@ package-vision/
 
 - 构造不同包管理器的升级命令
 - 构造锁文件同步命令
+- 根据目标版本生成明确的升级命令
 - 处理 monorepo / workspace 路径相关纯逻辑
 
-### 5.8 `configuration.ts`
+### 5.8 `upgradeStrategyUtils.ts`
+
+负责：
+
+- 计算“当前 major 内可安全升级到哪个版本”
+- 生成默认展示目标版本
+- 组装大版本升级时的候选操作
+
+### 5.9 `configuration.ts`
 
 负责：
 
 - 读取 VS Code 配置项
-- 为升级逻辑提供版本范围策略
+- 为升级逻辑提供大版本升级策略和版本范围策略
 
-### 5.9 `versionRangeUtils.ts`
+### 5.10 `versionRangeUtils.ts`
 
 负责：
 
@@ -177,7 +188,7 @@ package-vision/
 - 根据配置项生成新的版本范围
 - 处理 `preserve / caret / tilde / exact`
 
-### 5.10 `dependencyTreeProvider.ts`
+### 5.11 `dependencyTreeProvider.ts`
 
 负责：
 
@@ -185,9 +196,10 @@ package-vision/
 - 管理刷新
 - 管理筛选状态
 - 提供空状态提示
+- 为过时依赖提供悬浮行内操作
 - 与命令层联动
 
-### 5.11 `dependencyFilterUtils.ts`
+### 5.12 `dependencyFilterUtils.ts`
 
 负责：
 
@@ -213,6 +225,8 @@ export interface DependencyRecord {
   declaredVersion: string;
   packageManifest: PackageManifestRecord;
   latestVersion?: string;
+  latestSafeVersion?: string;
+  hasMajorUpdate?: boolean;
   status: "unknown" | "upToDate" | "outdated" | "error";
   errorMessage?: string;
 }
@@ -263,11 +277,16 @@ export interface DependencyRecord {
 用于把命令挂到：
 
 - 视图标题工具栏
+- Tree Item 悬浮行内操作
 - Tree Item 右键菜单
 
 ### 8.5 配置项
 
-当前已经用于控制升级后的版本范围写回策略：
+当前已经用于控制大版本升级策略和升级后的版本范围写回策略：
+
+- `ask`
+- `safe`
+- `latest`
 
 - `preserve`
 - `caret`
@@ -308,8 +327,8 @@ package 项：
 依赖项：
 
 - `label`：包名
-- `description`：声明版本和最新版本，例如 `^18.3.1 -> 19.0.0`
-- `tooltip`：显示 package、位置、状态和操作提示
+- `description`：声明版本和当前默认升级目标，例如 `^2.0.0 -> 2.5.4`
+- `tooltip`：显示 package、位置、状态、默认升级目标，以及更高 major 可用提示
 - `iconPath`：使用彩色状态图标区分已最新、过时、失败和升级中
 
 ### 9.3 命令建议
@@ -320,6 +339,7 @@ package 项：
 - `packageVision.setFilter`
 - `packageVision.clearFilter`
 - `packageVision.upgradeDependency`
+- `packageVision.upgradeDependencyToLatestMajor`
 - `packageVision.openPackageJson`
 - `packageVision.showOutput`
 
@@ -337,11 +357,11 @@ package 项：
 
 ### 10.2 升级命令示例
 
-- npm：`npm install <pkg>@latest`
-- pnpm：`pnpm update <pkg>@latest`
-- yarn modern：`yarn up <pkg>@latest`
-- yarn classic：`yarn upgrade <pkg> --latest`
-- bun：`bun update <pkg> --latest`
+- npm：`npm install <pkg>@<targetVersion>`
+- pnpm：`pnpm add <pkg>@<targetVersion>`
+- yarn modern：`yarn up <pkg>@<targetVersion>`
+- yarn classic：`yarn upgrade <pkg>@<targetVersion>`
+- bun：`bun add <pkg>@<targetVersion>`
 
 注意：当前实现已经通过配置项统一最终写回到 `package.json` 的版本范围，并在必要时再次执行安装同步锁文件。
 
@@ -379,7 +399,7 @@ package 项：
 
 ### 13.1 纯逻辑单元测试
 
-- 把包管理器命令构造、版本范围处理、筛选逻辑拆成纯函数
+- 把包管理器命令构造、版本范围处理、筛选逻辑、大版本升级策略拆成纯函数
 - 用 `tsx --test` 跑单元测试
 - 用 `npm run check` 串联 compile + unit test
 

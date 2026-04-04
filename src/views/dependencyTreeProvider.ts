@@ -7,7 +7,9 @@ import {
   DependencyStatus
 } from "../models/dependency";
 import { PackageJsonService } from "../services/packageJsonService";
+import { getComparableDeclaredVersion } from "../services/registryUtils";
 import { RegistryService } from "../services/registryService";
+import { getDefaultDisplayTargetVersion } from "../services/upgradeStrategyUtils";
 import {
   DependencyFilterMode,
   filterDependencies,
@@ -278,8 +280,11 @@ class DependencySectionItem extends vscode.TreeItem {
       (dependency) => dependency.status === "outdated"
     ).length;
 
-    // description 会直接显示在侧边栏右侧，适合放“这个分组里有多少过时依赖”这种摘要信息。
+    // Tree View 分组标题本身没有可靠的“加粗”能力，所以这里用图标、颜色和更明确的摘要文案
+    // 来拉开 Dependencies / Dev Dependencies 的视觉差异。
+    this.iconPath = getSectionIcon(section);
     this.description = formatSectionDescription(
+      section,
       dependencies.length,
       outdatedCount,
       upgradingCount
@@ -287,6 +292,7 @@ class DependencySectionItem extends vscode.TreeItem {
     this.contextValue = "dependencySection";
     this.tooltip = [
       `${formatSectionLabel(section)}`,
+      `Type: ${formatSectionKindLabel(section)}`,
       `${dependencies.length} total`,
       `${outdatedCount} outdated`,
       `${upgradingCount} upgrading`
@@ -306,7 +312,9 @@ class DependencyItem extends vscode.TreeItem {
     this.contextValue = isUpgrading
       ? "dependencyUpgrading"
       : dependency.status === "outdated"
-        ? "dependencyOutdated"
+        ? dependency.hasMajorUpdate
+          ? "dependencyOutdatedMajor"
+          : "dependencyOutdated"
         : "dependency";
     this.tooltip = new vscode.MarkdownString(
       buildDependencyTooltipLines(dependency, isUpgrading).join("\n")
@@ -343,11 +351,12 @@ function formatSectionLabel(section: DependencySection): string {
 }
 
 function formatSectionDescription(
+  section: DependencySection,
   total: number,
   outdatedCount: number,
   upgradingCount: number
 ): string {
-  const parts: string[] = [];
+  const parts: string[] = [formatSectionKindLabel(section)];
 
   if (upgradingCount > 0) {
     parts.push(`${upgradingCount} upgrading`);
@@ -366,12 +375,22 @@ function formatSectionDescription(
   return parts.join(" • ");
 }
 
+function formatSectionKindLabel(section: DependencySection): string {
+  return section === "dependencies" ? "runtime" : "tooling";
+}
+
 function formatDependencyDescription(
   dependency: DependencyRecord,
   isUpgrading: boolean
 ): string {
+  const displayTargetVersion = getDefaultDisplayTargetVersion(dependency);
+
   if (isUpgrading) {
-    return `Upgrading to ${dependency.latestVersion ?? "latest"}...`;
+    return `Upgrading to ${displayTargetVersion ?? dependency.latestVersion ?? "latest"}...`;
+  }
+
+  if (displayTargetVersion) {
+    return `${dependency.declaredVersion} -> ${displayTargetVersion}`;
   }
 
   if (dependency.latestVersion) {
@@ -400,12 +419,32 @@ function buildDependencyTooltipLines(
     lines.push(`Issue: ${dependency.errorMessage}`);
   }
 
+  const safeUpgradeTarget = dependency.latestSafeVersion;
+  const comparableDeclaredVersion = getComparableDeclaredVersion(
+    dependency.declaredVersion
+  );
+  if (
+    dependency.hasMajorUpdate &&
+    safeUpgradeTarget &&
+    comparableDeclaredVersion &&
+    safeUpgradeTarget !== dependency.latestVersion &&
+    safeUpgradeTarget !== comparableDeclaredVersion
+  ) {
+    lines.push(`Safe target: \`${safeUpgradeTarget}\``);
+    lines.push(`Latest major available: \`${dependency.latestVersion}\``);
+  } else if (dependency.hasMajorUpdate && dependency.latestVersion) {
+    lines.push(`Latest major available: \`${dependency.latestVersion}\``);
+  }
+
   if (isUpgrading) {
     lines.push(`Action: Upgrade in progress. Check the output channel for logs.`);
   }
 
-  if (dependency.status === "outdated" && dependency.latestVersion) {
-    lines.push(`Action: Click this item to upgrade to \`${dependency.latestVersion}\`.`);
+  if (dependency.status === "outdated") {
+    const defaultTargetVersion = getDefaultDisplayTargetVersion(dependency);
+    if (defaultTargetVersion) {
+      lines.push(`Action: Click this item to upgrade to \`${defaultTargetVersion}\`.`);
+    }
   }
 
   return lines;
@@ -460,6 +499,20 @@ function getDependencyIcon(
         new vscode.ThemeColor("foreground")
       );
   }
+}
+
+function getSectionIcon(section: DependencySection): vscode.ThemeIcon {
+  if (section === "dependencies") {
+    return new vscode.ThemeIcon(
+      "package",
+      new vscode.ThemeColor("testing.iconPassed")
+    );
+  }
+
+  return new vscode.ThemeIcon(
+    "gear",
+    new vscode.ThemeColor("textLink.foreground")
+  );
 }
 
 function createDependencyKey(dependency: DependencyRecord): string {

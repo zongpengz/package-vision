@@ -21,6 +21,7 @@ Package Vision 把依赖巡检和单包升级带到 VS Code 左侧栏。
 - 用状态图标区分已最新、过时、查询失败、无法比较和升级中
 - 支持按状态快速筛选依赖
 - 支持升级单个依赖到最新版本
+- 遇到大版本升级时，支持先询问、默认保守升级，或显式升级到最新 major
 - 支持配置升级后的版本范围写回策略：`preserve`、`caret`、`tilde`、`exact`
 - 提供输出日志，方便定位升级过程中的问题
 
@@ -36,6 +37,7 @@ Package Vision 把依赖巡检和单包升级带到 VS Code 左侧栏。
 2. 查看依赖的声明版本、最新版本和状态
 3. 需要时用顶部筛选按钮快速缩小范围
 4. 点击过时依赖，确认后执行升级
+5. 对存在大版本更新的包，可以使用悬浮图标显式升级到最新 major
 
 ## Screenshots
 
@@ -45,18 +47,25 @@ Package Vision 把依赖巡检和单包升级带到 VS Code 左侧栏。
 
 ## 设置项
 
-当前提供一个设置项：
+当前提供两个设置项：
 
+- `packageVision.upgrade.majorUpdateStrategy`
 - `packageVision.upgrade.versionRangeStyle`
 
 可选值：
 
+- `ask`
+- `safe`
+- `latest`
 - `preserve`
 - `caret`
 - `tilde`
 - `exact`
 
-这个设置决定升级后写回到 `package.json` 的版本范围风格。
+其中：
+
+- `packageVision.upgrade.majorUpdateStrategy` 控制遇到大版本升级时，是先询问、默认保守升级，还是直接升到最新 major
+- `packageVision.upgrade.versionRangeStyle` 控制升级后写回到 `package.json` 的版本范围风格
 
 ## 开发与文档
 
