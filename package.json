@@ -53,7 +53,8 @@
       "packageVision": [
         {
           "id": "packageVision.dependencies",
-          "name": "Dependencies"
+          "name": "Dependencies",
+          "icon": "resources/package-vision.svg"
         }
       ]
     },
