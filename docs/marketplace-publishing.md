@@ -2,6 +2,10 @@
 
 这份文档用于整理 `Package Vision` 在 VS Code Marketplace 首次发布前后的关键信息。
 
+如果你准备开始真正发布，建议优先看这份更偏执行清单的文档：
+
+- [Marketplace 发布前最后清单](./marketplace-release-checklist.md)
+
 ## 当前已就绪内容
 
 - 已配置 `publisher`、`repository`、`homepage`、`bugs`、`license`
