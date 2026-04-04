@@ -4,6 +4,15 @@ Package Vision 把依赖巡检和单包升级带到 VS Code 左侧栏。
 
 它适合在日常维护前端项目时，快速查看 `package.json` 里的声明版本、npm registry 上的最新版本，以及哪些包值得优先处理。
 
+已发布到 VS Code Marketplace：
+
+- https://marketplace.visualstudio.com/items?itemName=zongpengz.package-vision
+
+## 安装
+
+1. 在 VS Code 扩展市场搜索 `Package Vision`
+2. 或直接打开 Marketplace 页面安装
+
 ## 功能亮点
 
 - 在 Activity Bar 提供独立入口
@@ -61,4 +70,4 @@ Package Vision 把依赖巡检和单包升级带到 VS Code 左侧栏。
 
 ## 发布状态
 
-当前仓库已经完成本地 VSIX 打包与安装验证，具备继续准备 Marketplace 首次发布的基础条件。
+`0.0.1` 已于 `2026-04-04` 发布到 VS Code Marketplace。

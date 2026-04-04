@@ -6,6 +6,18 @@
 
 - [Marketplace 发布前最后清单](./marketplace-release-checklist.md)
 
+## 首次发布结果
+
+- 发布版本：`0.0.1`
+- 发布时间：`2026-04-04`
+- 扩展 ID：`zongpengz.package-vision`
+- Marketplace 页面：
+  - https://marketplace.visualstudio.com/items?itemName=zongpengz.package-vision
+- Publisher 管理页：
+  - https://marketplace.visualstudio.com/manage/publishers/zongpengz/extensions/package-vision/hub
+
+我在本地用 `vsce show zongpengz.package-vision` 做过发布后核对，CLI 已经能读取到这条扩展记录。
+
 ## 当前已就绪内容
 
 - 已配置 `publisher`、`repository`、`homepage`、`bugs`、`license`
@@ -42,12 +54,11 @@
   - `versions`
   - `upgrades`
 
-## 首次发布前建议再检查的事项
+## 发布后仍值得优化的事项
 
 - 截图在 Marketplace 页面里的展示顺序是否满意
 - README 首页是否足够像插件介绍页，而不是仓库维护说明
-- 是否要把首个公开版本标记为 `preview`
-- 发布版本号是否仍然保持 `0.0.1`
+- 下一次发布是否要改成 `0.1.0`
 - `CHANGELOG.md` 是否和这次发布内容一致
 
 ## 发布流程
@@ -74,6 +85,16 @@
 3. 本机安装生成的 `.vsix`，手动检查截图中展示的核心流程
 
 `npm run check:full` 暂时不建议作为本次发布前的硬门槛，因为当前的 Extension Host 集成测试 runner 在本机上还有单独的 CLI 启动问题，需要后续单独排查。
+
+## 当前展示面的简短复盘
+
+- 短描述已经能清楚表达“查看依赖版本 + 筛选过时依赖 + 直接升级”
+- 关键词覆盖了 `npm`、`pnpm`、`yarn`、`bun`、`monorepo`，基础发现性已经够用
+- README 已经有 3 张截图，能解释主列表、筛选和单包升级
+- 如果后面你想继续优化商店转化，最值得优先尝试的是：
+  - 把 README 开头再压缩成更像产品卖点的 2 到 3 句话
+  - 考虑补一段英文简介，提升更广泛搜索下的理解成本
+  - 等有更多数据后，再决定是否调整关键词或分类
 
 ## 可选的手动发布方式
 
