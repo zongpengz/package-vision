@@ -74,6 +74,7 @@ Package Vision 把依赖巡检和单包升级带到 VS Code 左侧栏。
 如果你是这个仓库的维护者，或者想通过这个项目学习 VS Code 扩展开发，建议从这些文档开始：
 
 - [产品需求文档](./docs/product-requirements.md)
+- [代码导读与目录结构](./docs/codebase-guide.md)
 - [技术设计文档](./docs/technical-design.md)
 - [开发流程文档](./docs/development-workflow.md)
 - [项目复盘文档](./docs/project-retrospective.md)

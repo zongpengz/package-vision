@@ -17,6 +17,8 @@ import {
   formatDependencyFilterLabel
 } from "./dependencyFilterUtils";
 
+// DependencyTreeProvider 是 VS Code Tree View API 的核心实现。
+// 它负责把“依赖数据”翻译成“树节点结构”，是整个 UI 层的中心。
 // Tree View 里的每个节点都必须能被 getTreeItem() / getChildren() 识别。
 // 这里把“分组节点、依赖节点、空状态节点”统一成一个联合类型。
 type PackageVisionNode =
@@ -84,6 +86,8 @@ export class DependencyTreeProvider
   async getChildren(
     element?: PackageVisionNode
   ): Promise<PackageVisionNode[]> {
+    // TreeDataProvider 的读取逻辑天然是“递归式”的：
+    // 传入不同层级的节点，就返回该节点的子节点。
     if (element instanceof PackageManifestItem) {
       return this.buildSectionItems(
         element.packageManifest,
@@ -193,6 +197,8 @@ export class DependencyTreeProvider
     packageManifests: PackageManifestRecord[],
     dependencies: DependencyRecord[]
   ): PackageManifestItem[] {
+    // 多 package.json 时，树的第一层先按 package manifest 分组，
+    // 这样用户能快速定位一个依赖属于哪个子包。
     return packageManifests.map((packageManifest) => {
       const manifestDependencies = dependencies.filter(
         (dependency) => dependency.packageManifest.id === packageManifest.id
@@ -317,6 +323,8 @@ class DependencyItem extends vscode.TreeItem {
           ? "dependencyOutdatedMajor"
           : "dependencyOutdated"
         : "dependency";
+    // contextValue 会驱动 package.json 里 menus.when 的显示条件。
+    // 例如“大版本升级”图标只在 dependencyOutdatedMajor 时出现。
     this.tooltip = new vscode.MarkdownString(
       buildDependencyTooltipLines(dependency, isUpgrading).join("\n")
     );
@@ -384,6 +392,7 @@ function formatDependencyDescription(
   dependency: DependencyRecord,
   isUpgrading: boolean
 ): string {
+  // description 只放最关键的一行，避免 Tree View 在信息量上过载。
   const displayTargetVersion = getDefaultDisplayTargetVersion(dependency);
 
   if (isUpgrading) {
@@ -405,6 +414,8 @@ function buildDependencyTooltipLines(
   dependency: DependencyRecord,
   isUpgrading: boolean
 ): string[] {
+  // 详细信息全部放在 tooltip，保持列表本身简洁，
+  // 同时让用户悬浮时还能看到完整上下文。
   const lines = [
     `**${dependency.name}**`,
     ``,
@@ -517,5 +528,7 @@ function getSectionIcon(section: DependencySection): vscode.ThemeIcon {
 }
 
 function createDependencyKey(dependency: DependencyRecord): string {
+  // 同名依赖可能同时出现在不同 package.json 或不同 section，
+  // 所以 key 需要把 manifest + section + name 一起纳入。
   return `${dependency.packageManifest.id}:${dependency.section}:${dependency.name}`;
 }

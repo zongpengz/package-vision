@@ -7,6 +7,11 @@ import { PackageJsonService } from "../../services/packageJsonService";
 import type { RegistryService } from "../../services/registryService";
 import { DependencyTreeProvider } from "../../views/dependencyTreeProvider";
 
+// 这一组测试不追求覆盖所有细节，而是验证“扩展在 VS Code 里能不能基本跑通”。
+// 所以它更像冒烟测试：
+// - 命令有没有注册
+// - fixture 工作区能不能被扫描到
+// - Tree View 的主要分组和筛选有没有明显回归
 suite("Package Vision Extension Host", () => {
   suiteSetup(async function () {
     this.timeout(60000);
@@ -114,6 +119,8 @@ suite("Package Vision Extension Host", () => {
 });
 
 function createStubRegistryService(): RegistryService {
+  // 集成测试这里故意不用真实网络请求，
+  // 这样测试会更稳定，也更聚焦在扩展本身的行为。
   return {
     async enrichDependencies(
       dependencies: DependencyRecord[]

@@ -6,6 +6,9 @@ import {
   resolveCliArgsFromVSCodeExecutablePath
 } from "@vscode/test-electron";
 
+// 这个文件是“集成测试启动器”。
+// 它不会直接写断言，而是负责把一个真正的 VS Code 实例拉起来，
+// 再把测试入口和 fixture 工作区交给那个实例执行。
 async function main(): Promise<void> {
   try {
     const extensionDevelopmentPath = path.resolve(__dirname, "../..");
@@ -48,6 +51,8 @@ async function main(): Promise<void> {
 
 function runCommand(executablePath: string, args: string[]): Promise<void> {
   return new Promise<void>((resolve, reject) => {
+    // 这里直接转发 stdout / stderr，
+    // 这样集成测试失败时，你能在终端里看到接近真实 VS Code 启动过程的日志。
     const command = cp.spawn(executablePath, args, {
       shell: process.platform === "win32"
     });

@@ -10,6 +10,12 @@ import {
   toDependencyRecords
 } from "./packageManifestUtils";
 
+// 这个 service 负责“和工作区里的 package.json 打交道”。
+// 它的定位不是做复杂业务判断，而是：
+// 1. 找到有哪些 package.json
+// 2. 读出来
+// 3. 转成统一的数据结构
+// 4. 在需要时写回文件
 export class PackageJsonService {
   getWorkspaceFolders(): readonly vscode.WorkspaceFolder[] {
     return vscode.workspace.workspaceFolders ?? [];
@@ -25,6 +31,8 @@ export class PackageJsonService {
   }
 
   async loadDependencies(): Promise<DependencyRecord[]> {
+    // 这里先按 manifest 读取，再统一拍平依赖。
+    // 这样 monorepo 和单包项目可以共用同一条链路。
     const manifests = await this.loadPackageManifests();
     return manifests.flatMap((manifest) => [
       ...toDependencyRecords(manifest, "dependencies"),
@@ -36,6 +44,8 @@ export class PackageJsonService {
     const workspaceFolders = this.getWorkspaceFolders();
     const packageJsonUrisByWorkspace = await Promise.all(
       workspaceFolders.map(async (workspaceFolder) => {
+        // 这里不只看工作区根目录，而是扫描整个工作区。
+        // 这就是 monorepo 支持的基础。
         const packageJsonUris = await vscode.workspace.findFiles(
           new vscode.RelativePattern(workspaceFolder, "**/package.json"),
           new vscode.RelativePattern(
@@ -88,6 +98,8 @@ export class PackageJsonService {
     section: DependencyRecord["section"],
     versionRange: string
   ): Promise<void> {
+    // 升级流程里，包管理器可能会先改 lockfile 或改 package.json，
+    // 这里的职责是把“最终想保存成什么声明版本”明确写回去。
     const packageJsonUri = vscode.Uri.file(packageManifest.packageJsonPath);
     const packageJson = await this.readPackageJson(packageJsonUri);
     if (!packageJson) {
@@ -107,6 +119,8 @@ export class PackageJsonService {
     workspaceFolder: vscode.WorkspaceFolder,
     packageJsonUri: vscode.Uri
   ): Promise<PackageManifestRecord> {
+    // buildPackageManifestRecord() 会把原始 package.json
+    // 转成更适合视图和命令层使用的结构化记录。
     const packageJson = await this.readPackageJson(packageJsonUri);
     if (!packageJson) {
       throw new Error(`Unable to read package.json: ${packageJsonUri.fsPath}`);

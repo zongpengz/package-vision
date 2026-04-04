@@ -22,6 +22,12 @@ import {
   formatDependencyFilterLabel
 } from "./views/dependencyFilterUtils";
 
+// extension.ts 是扩展的“组装层”。
+// 真正的业务细节分散在 services 和 views 里，而这里负责：
+// 1. 创建对象
+// 2. 注册命令
+// 3. 监听 VS Code 事件
+// 4. 协调跨模块流程
 export function activate(context: vscode.ExtensionContext): void {
   // activate() 是扩展真正“启动”的地方。
   // VS Code 在满足 activationEvents 后会调用这里，我们通常在这里注册命令、视图和事件监听。
@@ -44,6 +50,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     treeProvider.onDidChangeTreeData(() => {
+      // 过滤器标签属于 Tree View 外层的显示状态，
+      // 所以当树节点刷新时，也要顺手同步视图描述和上下文变量。
       syncFilterPresentation(treeProvider, dependencyTreeView);
     })
   );
@@ -62,6 +70,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand("packageVision.setFilter", async () => {
+      // 筛选本身由 treeProvider 持有；
+      // 入口层只负责把 Quick Pick 结果传给 provider。
       const selection = await vscode.window.showQuickPick(
         buildFilterQuickPickItems(treeProvider.getFilterMode()),
         {
@@ -175,6 +185,8 @@ async function handleUpgradeCommand(
   treeProvider: DependencyTreeProvider,
   packageManagerService: PackageManagerService
 ): Promise<void> {
+  // 命令参数既可能直接是 DependencyRecord，
+  // 也可能是 Tree Item 上挂的包装对象，所以先统一解析。
   const dependency = resolveDependencyRecord(target);
   if (!dependency) {
     void vscode.window.showWarningMessage(
@@ -199,6 +211,7 @@ async function handleUpgradeCommand(
 
   const upgradeChoice = await resolveUpgradeChoice(dependency, mode);
   if (!upgradeChoice) {
+    // 用户取消选择、或者当前策略下没有合适目标时，都属于正常退出。
     return;
   }
 
@@ -218,6 +231,7 @@ async function handleUpgradeCommand(
   treeProvider.startUpgrade(dependency);
 
   try {
+    // withProgress 会把升级过程放到通知区，给用户一个明确的正在执行反馈。
     const result = await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
@@ -284,6 +298,8 @@ async function resolveUpgradeChoice(
   dependency: DependencyRecord,
   mode: "default" | "latestMajor"
 ): Promise<UpgradeChoice | undefined> {
+  // 这个函数的职责是：
+  // 根据“命令模式 + 当前配置 + 依赖状态”推导出真正要执行的升级目标版本。
   if (mode === "latestMajor") {
     if (!dependency.hasMajorUpdate || !dependency.latestVersion) {
       void vscode.window.showInformationMessage(
@@ -306,6 +322,8 @@ async function resolveUpgradeChoice(
   const configurationScope = vscode.Uri.file(
     dependency.packageManifest.packageJsonPath
   );
+  // 把 package.json 路径作为配置 scope 传进去后，
+  // VS Code 能按具体资源位置解析设置值。
   const strategy = getMajorUpdateStrategy(configurationScope);
   const safeUpgradeTarget = getSafeUpgradeTargetVersion(dependency);
 
@@ -364,6 +382,8 @@ async function resolveUpgradeChoice(
       return undefined;
     case "ask":
     default: {
+      // ask 模式是最适合学习和日常使用的默认值：
+      // 既不会偷偷升 major，也能让用户理解“safe / major”两条路径的差别。
       const choices = buildMajorAwareUpgradeChoices(dependency);
       if (choices.length === 1) {
         return choices[0];
@@ -390,6 +410,7 @@ function buildUpgradeConfirmationMessage(
   dependency: DependencyRecord,
   upgradeChoice: UpgradeChoice
 ): string {
+  // 确认文案会根据是否 major update 给出不同程度的风险提示。
   if (upgradeChoice.isMajorUpdate) {
     return `Upgrade ${dependency.name} from ${dependency.declaredVersion} to ${upgradeChoice.targetVersion}? This is a major version change and may require code updates. Package Vision will update package.json and lock files.`;
   }
@@ -442,9 +463,11 @@ async function resolvePackageManifest(
   }
 
   if (manifests.length === 1) {
+    // 单包项目不打扰用户，直接返回。
     return manifests[0];
   }
 
+  // 多 package.json 场景下再让用户选，这样单仓库和 monorepo 的体验都比较自然。
   const selection = await vscode.window.showQuickPick(
     manifests.map((manifest) => ({
       label: manifest.displayName,
@@ -489,6 +512,8 @@ function syncFilterPresentation(
   treeProvider: DependencyTreeProvider,
   dependencyTreeView: vscode.TreeView<unknown>
 ): void {
+  // setContext 会影响 package.json 里 menus 的 when 条件。
+  // 这就是“有筛选时显示 Clear Filter 按钮”的实现基础。
   dependencyTreeView.description = treeProvider.getFilterLabel();
   void vscode.commands.executeCommand(
     "setContext",

@@ -29,6 +29,8 @@ interface UpgradeResult {
   targetVersion: string;
 }
 
+// 如果说 packageManagerCore 负责“生成命令”，
+// 那 packageManagerService 负责“真正执行命令并和 VS Code / 文件系统打交道”。
 export class PackageManagerService implements vscode.Disposable {
   private readonly outputChannel =
     vscode.window.createOutputChannel("Package Vision");
@@ -41,6 +43,7 @@ export class PackageManagerService implements vscode.Disposable {
     dependency: DependencyRecord,
     targetVersion: string
   ): Promise<UpgradeResult> {
+    // 先推导出当前依赖应该在哪个目录、用哪个包管理器执行升级。
     const executionContext = await this.resolveExecutionContext(dependency);
     if (!executionContext) {
       throw new Error("Open a workspace folder before upgrading dependencies.");
@@ -62,6 +65,7 @@ export class PackageManagerService implements vscode.Disposable {
       packageManager === "yarn"
         ? await this.detectYarnVariant(executionContext)
         : undefined;
+    // 这里把“设置项里配置的版本范围风格”真正落到升级流程里。
     const versionRangeStyle = getUpgradeVersionRangeStyle(
       vscode.Uri.file(dependency.packageManifest.packageJsonPath)
     );
@@ -84,6 +88,8 @@ export class PackageManagerService implements vscode.Disposable {
     );
 
     try {
+      // execFile 比 exec 更适合这里：
+      // 不需要自己拼整行 shell 命令，参数处理更安全也更稳定。
       const { stdout, stderr } = await execFileAsync(executable, args, {
         cwd: cwdPath,
         maxBuffer: 10 * 1024 * 1024
@@ -153,6 +159,8 @@ export class PackageManagerService implements vscode.Disposable {
     desiredVersionRange: string,
     usedFallbackStyle: boolean
   ): Promise<string> {
+    // 这里的目标是“最终 package.json 应该长成用户设置里要求的样子”。
+    // 有些包管理器会自动写回版本，但写回风格未必符合插件设置，所以要二次校正。
     const currentDeclaration =
       await this.packageJsonService.readDependencyDeclaration(
         dependency.packageManifest,
@@ -181,6 +189,8 @@ export class PackageManagerService implements vscode.Disposable {
       desiredVersionRange
     );
 
+    // package.json 被手动改写后，再跑一次 install 来同步 lockfile，
+    // 避免依赖声明和锁文件出现不一致。
     const syncCommand = buildLockfileSyncCommand({
       executionContext
     });
@@ -212,6 +222,8 @@ export class PackageManagerService implements vscode.Disposable {
     startingDirectoryPath: string,
     workspaceFolderPath: string
   ): Promise<PackageManagerDetectionResult> {
+    // 按更“明确”的锁文件优先级从上往下判断。
+    // 如果一个目录里存在 pnpm-lock.yaml，就应该优先认定为 pnpm 项目。
     for (const directoryPath of walkUpDirectories(
       startingDirectoryPath,
       workspaceFolderPath
@@ -257,6 +269,8 @@ export class PackageManagerService implements vscode.Disposable {
   private async detectYarnVariant(
     executionContext: PackageManagerExecutionContext
   ): Promise<YarnVariant> {
+    // Yarn 需要进一步区分 classic / modern，
+    // 因为两者的升级命令并不一样。
     const packageManagerSpecifier =
       await this.packageJsonService.getPackageManagerSpecifierForDirectory(
         executionContext.commandCwdPath
@@ -302,6 +316,8 @@ export class PackageManagerService implements vscode.Disposable {
     const workspaceFolderPath = dependency.packageManifest.workspaceFolderUri;
     const packageDirPath = dependency.packageManifest.packageDirPath;
 
+    // 检测结果 + packageDirPath 会一起决定：
+    // 命令在哪执行、是否需要 workspace/filter 参数、lockfile 在哪一层同步。
     const detection = await this.detectPackageManager(
       packageDirPath,
       workspaceFolderPath

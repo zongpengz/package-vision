@@ -8,6 +8,9 @@ import {
   hasMajorUpdate
 } from "./registryUtils";
 
+// 这个 service 负责“把本地依赖声明，补全成带最新版本信息的依赖记录”。
+// 你可以把它看成一个查询层：输入是 DependencyRecord，输出仍然是 DependencyRecord，
+// 只是多了 latestVersion / latestSafeVersion / hasMajorUpdate / status 这些字段。
 interface RegistryMetadata {
   "dist-tags"?: {
     latest?: string;
@@ -90,6 +93,7 @@ export class RegistryService {
   ): Promise<{ latestVersion: string; stableVersions: string[] }> {
     const cached = this.latestVersionCache.get(packageName);
     if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+      // 命中缓存时直接返回，避免每次刷新视图都重复打 npm registry。
       return {
         latestVersion: cached.latestVersion,
         stableVersions: cached.stableVersions

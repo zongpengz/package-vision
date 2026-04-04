@@ -2,6 +2,8 @@ import * as semver from "semver";
 
 import type { DependencyStatus } from "../models/dependency";
 
+// registryUtils 只放“纯 semver 判断”。
+// 这样这些规则就能被单元测试直接覆盖，而不用真的发网络请求。
 export function determineDependencyStatus(
   declaredVersion: string,
   latestVersion: string
@@ -29,6 +31,9 @@ export function normalizeSemverRange(range: string): string | undefined {
 export function getComparableDeclaredVersion(
   declaredVersion: string
 ): string | undefined {
+  // 这里取的是 minVersion，而不是直接取 range 里的原始字符串。
+  // 例如 ^1.7.10 的“可比较基线”应当是 1.7.10，
+  // 这样我们才能判断有没有更新的声明目标值得写回 package.json。
   const normalizedRange = normalizeSemverRange(declaredVersion);
   if (!normalizedRange) {
     return undefined;
@@ -41,6 +46,8 @@ export function findLatestVersionInCurrentMajor(
   declaredVersion: string,
   availableVersions: string[]
 ): string | undefined {
+  // 这一步是“大版本谨慎升级”体验的基础：
+  // 先找出当前 major 内能升到的最高稳定版本。
   const comparableDeclaredVersion = getComparableDeclaredVersion(declaredVersion);
   if (!comparableDeclaredVersion) {
     return undefined;
