@@ -1,6 +1,10 @@
+import * as cp from "node:child_process";
 import * as path from "node:path";
 
-import { runTests } from "@vscode/test-electron";
+import {
+  downloadAndUnzipVSCode,
+  resolveCliArgsFromVSCodeExecutablePath
+} from "@vscode/test-electron";
 
 async function main(): Promise<void> {
   try {
@@ -14,16 +18,52 @@ async function main(): Promise<void> {
       "monorepo"
     );
 
-    await runTests({
-      extensionDevelopmentPath,
-      extensionTestsPath,
-      launchArgs: [fixtureWorkspacePath, "--disable-extensions"]
-    });
+    const vscodeExecutablePath = await downloadAndUnzipVSCode();
+    const [cliPath, ...cliArgs] =
+      resolveCliArgsFromVSCodeExecutablePath(vscodeExecutablePath);
+
+    // 这里改走 VS Code CLI，而不是直接调用 runTests。
+    // 原因是当前 macOS + Electron 下载产物下，launchArgs 会被前置到错误的位置，
+    // 导致工作区路径和 --disable-extensions 被 Electron 本身误解析。
+    const args = [
+      ...cliArgs,
+      "--disable-extensions",
+      "--disable-updates",
+      "--disable-workspace-trust",
+      "--skip-welcome",
+      "--skip-release-notes",
+      fixtureWorkspacePath,
+      `--extensionDevelopmentPath=${extensionDevelopmentPath}`,
+      `--extensionTestsPath=${extensionTestsPath}`
+    ];
+
+    await runCommand(cliPath, args);
+    console.log("Package Vision integration tests completed successfully.");
   } catch (error) {
     console.error(error);
     console.error("Failed to run Package Vision integration tests.");
     process.exit(1);
   }
+}
+
+function runCommand(executablePath: string, args: string[]): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const command = cp.spawn(executablePath, args, {
+      shell: process.platform === "win32"
+    });
+
+    command.stdout.on("data", (chunk) => process.stdout.write(chunk));
+    command.stderr.on("data", (chunk) => process.stderr.write(chunk));
+    command.on("error", reject);
+    command.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      reject(new Error(`Integration test process exited with code ${code}.`));
+    });
+  });
 }
 
 void main();

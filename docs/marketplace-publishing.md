@@ -78,13 +78,12 @@
 
 ## 当前更稳的发布门槛
 
-目前建议把下面 3 项作为正式发布前的硬门槛：
+目前建议把下面 4 项作为正式发布前的硬门槛：
 
 1. `npm run check`
-2. `npx @vscode/vsce package`
-3. 本机安装生成的 `.vsix`，手动检查截图中展示的核心流程
-
-`npm run check:full` 暂时不建议作为本次发布前的硬门槛，因为当前的 Extension Host 集成测试 runner 在本机上还有单独的 CLI 启动问题，需要后续单独排查。
+2. `npm run check:full`
+3. `npx @vscode/vsce package`
+4. 本机安装生成的 `.vsix`，手动检查截图中展示的核心流程
 
 ## 当前展示面的简短复盘
 

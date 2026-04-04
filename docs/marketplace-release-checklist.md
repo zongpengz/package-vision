@@ -52,22 +52,18 @@
 
 ## 发布前建议执行的验证
 
-建议把下面 3 项作为当前仓库更稳的发布门槛：
+建议把下面 4 项作为当前仓库更稳的发布门槛：
 
 1. `npm run check`
-2. `npx @vscode/vsce package`
-3. 在本机安装生成的 `.vsix`，手动检查侧边栏入口、列表展示、筛选、单包升级入口
-
-## 当前已知事项
-
-- `npm run check:full` 暂时不建议作为本次发布前的硬门槛
-- 原因是当前的 Extension Host 集成测试 runner 在本机上还有单独的 CLI 启动问题，需要后续单独排查
-- 这不影响当前的 Marketplace 元数据、打包和 VSIX 安装链路
+2. `npm run check:full`
+3. `npx @vscode/vsce package`
+4. 在本机安装生成的 `.vsix`，手动检查侧边栏入口、列表展示、筛选、单包升级入口
 
 ## 下次发布当天命令清单
 
 1. 先做本地验证
    - `npm run check`
+   - `npm run check:full`
    - `npx @vscode/vsce package`
 2. 如果还没登录 publisher
    - `vsce login zongpengz`
