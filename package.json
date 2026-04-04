@@ -1,7 +1,7 @@
 {
   "name": "package-vision",
   "displayName": "Package Vision",
-  "description": "Inspect workspace dependency declarations from the VS Code sidebar.",
+  "description": "Inspect dependency versions, filter outdated packages, and upgrade them from the VS Code sidebar.",
   "version": "0.0.1",
   "publisher": "zongpengz",
   "license": "MIT",
@@ -17,14 +17,27 @@
     "vscode": "^1.90.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Visualization"
   ],
   "keywords": [
     "package.json",
+    "dependency",
     "dependencies",
+    "outdated",
     "npm",
-    "versions"
+    "pnpm",
+    "yarn",
+    "bun",
+    "monorepo",
+    "versions",
+    "upgrades"
   ],
+  "icon": "resources/marketplace-icon.png",
+  "galleryBanner": {
+    "color": "#123A4A",
+    "theme": "dark"
+  },
   "activationEvents": [
     "onView:packageVision.dependencies",
     "onCommand:packageVision.refresh",

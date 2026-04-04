@@ -8,3 +8,4 @@ tsconfig.json
 *.vsix
 out/test/**
 **/*.map
+resources/marketplace-icon.svg
