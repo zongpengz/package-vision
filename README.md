@@ -65,6 +65,7 @@ Package Vision 把依赖巡检和单包升级带到 VS Code 左侧栏。
 - [产品需求文档](./docs/product-requirements.md)
 - [技术设计文档](./docs/technical-design.md)
 - [开发流程文档](./docs/development-workflow.md)
+- [项目复盘文档](./docs/project-retrospective.md)
 - [测试与验证文档](./docs/testing-and-validation.md)
 - [Marketplace 发布文档](./docs/marketplace-publishing.md)
 
