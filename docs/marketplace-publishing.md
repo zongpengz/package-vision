@@ -1,14 +1,14 @@
 # Marketplace 发布文档
 
-这份文档用于整理 `Package Vision` 在 VS Code Marketplace 首次发布前后的关键信息。
+这份文档用于整理 `Package Vision` 在 VS Code Marketplace 发布前后的关键信息。
 
 如果你准备开始真正发布，建议优先看这份更偏执行清单的文档：
 
 - [Marketplace 发布前最后清单](./marketplace-release-checklist.md)
 
-## 首次发布结果
+## 当前发布状态
 
-- 发布版本：`0.0.1`
+- 最新发布版本：`0.1.0`
 - 发布时间：`2026-04-04`
 - 扩展 ID：`zongpengz.package-vision`
 - Marketplace 页面：
@@ -35,7 +35,7 @@
 
 - 扩展名：`Package Vision`
 - 扩展 ID：`zongpengz.package-vision`
-- 当前版本：`0.0.1`
+- 当前版本：`0.1.0`
 - 短描述：
   - `Inspect dependency versions, filter outdated packages, and upgrade them from the VS Code sidebar.`
 - 分类：
@@ -58,7 +58,7 @@
 
 - 截图在 Marketplace 页面里的展示顺序是否满意
 - README 首页是否足够像插件介绍页，而不是仓库维护说明
-- 下一次发布是否要改成 `0.1.0`
+- 下一次发布是继续走 `patch` 还是提升到 `0.2.0`
 - `CHANGELOG.md` 是否和这次发布内容一致
 
 ## 发布流程

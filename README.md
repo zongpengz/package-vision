@@ -82,4 +82,4 @@ Package Vision 把依赖巡检和单包升级带到 VS Code 左侧栏。
 
 ## 发布状态
 
-`0.0.1` 已于 `2026-04-04` 发布到 VS Code Marketplace。
+`0.1.0` 已于 `2026-04-04` 发布到 VS Code Marketplace。
