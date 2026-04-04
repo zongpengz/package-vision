@@ -38,16 +38,6 @@
     "color": "#123A4A",
     "theme": "dark"
   },
-  "activationEvents": [
-    "onView:packageVision.dependencies",
-    "onCommand:packageVision.refresh",
-    "onCommand:packageVision.setFilter",
-    "onCommand:packageVision.clearFilter",
-    "onCommand:packageVision.openPackageJson",
-    "onCommand:packageVision.upgradeDependency",
-    "onCommand:packageVision.upgradeDependencyToLatestMajor",
-    "onCommand:packageVision.showOutput"
-  ],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
