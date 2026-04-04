@@ -76,7 +76,19 @@ npm run typecheck
 
 适合在你只想快速确认 TypeScript 类型是否干净时使用。
 
-### 3.2 日常开发检查
+### 3.2 ESLint 检查
+
+```bash
+npm run lint
+```
+
+需要自动修复明显的格式和导入问题时，可以执行：
+
+```bash
+npm run lint:fix
+```
+
+### 3.3 日常开发检查
 
 ```bash
 npm run check
@@ -84,11 +96,12 @@ npm run check
 
 这会执行：
 
+- `npm run lint`
 - `npm run typecheck`
 - `npm run compile`
 - `npm run test:unit`
 
-### 3.3 完整检查
+### 3.4 完整检查
 
 ```bash
 npm run check:full

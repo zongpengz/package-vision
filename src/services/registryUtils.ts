@@ -1,6 +1,6 @@
 import * as semver from "semver";
 
-import { DependencyStatus } from "../models/dependency";
+import type { DependencyStatus } from "../models/dependency";
 
 export function determineDependencyStatus(
   declaredVersion: string,

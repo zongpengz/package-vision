@@ -1,6 +1,6 @@
 import * as path from "node:path";
 
-import {
+import type {
   DependencyRecord,
   DependencySection,
   PackageManifestRecord

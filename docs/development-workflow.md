@@ -175,9 +175,15 @@ VS Code 扩展开发最常用的调试方式是：
 
 现在这个仓库也已经补上了 Extension Host 集成测试，所以你还可以：
 
+- 日常先执行 `npm run check`
 - 执行 `npm run test:integration`
 - 或者在 Run and Debug 里直接使用 `Run Package Vision Tests`
-- 打包前执行 `npm run check:full`
+- 在需要时再执行 `npm run check:full`
+
+这里更推荐的节奏是：
+
+- `npm run check` 作为日常稳定门槛
+- `npm run check:full` 作为额外验证，而不是每次都依赖它
 
 如果修改的是视图声明，有时需要执行：
 

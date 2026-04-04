@@ -1,17 +1,18 @@
 import * as vscode from "vscode";
 
-import {
+import type {
   DependencyRecord,
   PackageManifestRecord,
   DependencySection,
   DependencyStatus
 } from "../models/dependency";
-import { PackageJsonService } from "../services/packageJsonService";
+import type { PackageJsonService } from "../services/packageJsonService";
 import { getComparableDeclaredVersion } from "../services/registryUtils";
-import { RegistryService } from "../services/registryService";
+import type { RegistryService } from "../services/registryService";
 import { getDefaultDisplayTargetVersion } from "../services/upgradeStrategyUtils";
+import type {
+  DependencyFilterMode} from "./dependencyFilterUtils";
 import {
-  DependencyFilterMode,
   filterDependencies,
   formatDependencyFilterLabel
 } from "./dependencyFilterUtils";

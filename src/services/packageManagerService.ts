@@ -6,12 +6,13 @@ import { promisify } from "node:util";
 import * as vscode from "vscode";
 
 import { getUpgradeVersionRangeStyle } from "../configuration";
-import { DependencyRecord } from "../models/dependency";
-import { PackageJsonService } from "./packageJsonService";
-import {
+import type { DependencyRecord } from "../models/dependency";
+import type { PackageJsonService } from "./packageJsonService";
+import type {
   PackageManagerDetectionResult,
   PackageManagerExecutionContext,
-  YarnVariant,
+  YarnVariant} from "./packageManagerCore";
+import {
   buildLockfileSyncCommand,
   buildUpgradeCommand,
   createPackageManagerExecutionContext,
@@ -115,7 +116,9 @@ export class PackageManagerService implements vscode.Disposable {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       this.appendLogLine(`Upgrade failed for ${dependency.name}: ${message}`);
-      throw new Error(message);
+      throw new Error(message, {
+        cause: error
+      });
     }
   }
 

@@ -7,7 +7,7 @@ import {
   createPackageManagerExecutionContext,
   walkUpDirectories
 } from "../src/services/packageManagerCore";
-import { DependencyRecord, PackageManifestRecord } from "../src/models/dependency";
+import type { DependencyRecord, PackageManifestRecord } from "../src/models/dependency";
 
 function createManifest(
   overrides: Partial<PackageManifestRecord> = {}

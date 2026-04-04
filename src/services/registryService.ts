@@ -1,7 +1,7 @@
 import * as https from "node:https";
 import * as semver from "semver";
 
-import { DependencyRecord } from "../models/dependency";
+import type { DependencyRecord } from "../models/dependency";
 import {
   determineDependencyStatus,
   findLatestVersionInCurrentMajor,

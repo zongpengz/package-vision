@@ -1,6 +1,6 @@
 import * as semver from "semver";
 
-import { DependencyRecord } from "../models/dependency";
+import type { DependencyRecord } from "../models/dependency";
 import { getComparableDeclaredVersion } from "./registryUtils";
 
 export type MajorUpdateStrategy = "ask" | "safe" | "latest";

@@ -1,4 +1,4 @@
-import { DependencyRecord } from "../models/dependency";
+import type { DependencyRecord } from "../models/dependency";
 
 export type DependencyFilterMode =
   | "all"

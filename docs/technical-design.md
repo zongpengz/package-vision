@@ -57,6 +57,7 @@ flowchart LR
 
 ```text
 package-vision/
+  eslint.config.mjs
   src/
     extension.ts
     configuration.ts
@@ -94,6 +95,7 @@ package-vision/
     technical-design.md
     development-workflow.md
     testing-and-validation.md
+  tsconfig.tests.json
 ```
 
 ## 5. 模块职责
@@ -401,7 +403,9 @@ package 项：
 
 - 把包管理器命令构造、版本范围处理、筛选逻辑、大版本升级策略拆成纯函数
 - 用 `tsx --test` 跑单元测试
-- 用 `npm run check` 串联 compile + unit test
+- 用 `npm run lint` 做静态规则检查
+- 用 `npm run typecheck` 做 TypeScript 类型检查
+- 用 `npm run check` 串联 lint + typecheck + compile + unit test
 
 这层测试不依赖 VS Code Extension Host，执行更快，适合日常迭代。
 

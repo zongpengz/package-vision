@@ -1,7 +1,6 @@
 import * as path from "node:path";
 
-import { DependencyRecord } from "../models/dependency";
-import { SavedVersionRangeStyle, VersionRangeStyle } from "./versionRangeUtils";
+import type { DependencyRecord } from "../models/dependency";
 
 export type PackageManagerKind = "npm" | "pnpm" | "yarn" | "bun";
 export type YarnVariant = "classic" | "modern";

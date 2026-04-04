@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { DependencyRecord, PackageManifestRecord } from "../src/models/dependency";
+import type { DependencyRecord, PackageManifestRecord } from "../src/models/dependency";
 import {
   buildMajorAwareUpgradeChoices,
   getDefaultDisplayTargetVersion,

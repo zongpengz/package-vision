@@ -2,9 +2,10 @@ import * as path from "node:path";
 
 import * as vscode from "vscode";
 
-import { DependencyRecord, PackageManifestRecord } from "../models/dependency";
+import type { DependencyRecord, PackageManifestRecord } from "../models/dependency";
+import type {
+  PackageJsonShape} from "./packageManifestUtils";
 import {
-  PackageJsonShape,
   buildPackageManifestRecord,
   toDependencyRecords
 } from "./packageManifestUtils";
@@ -131,7 +132,9 @@ export class PackageJsonService {
       return JSON.parse(text) as PackageJsonShape;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      throw new Error(`Unable to read package.json: ${message}`);
+      throw new Error(`Unable to read package.json: ${message}`, {
+        cause: error
+      });
     }
   }
 

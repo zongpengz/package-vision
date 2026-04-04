@@ -3,19 +3,22 @@ import * as path from "node:path";
 import * as semver from "semver";
 
 import { getMajorUpdateStrategy } from "./configuration";
-import { DependencyRecord, PackageManifestRecord } from "./models/dependency";
+import type { DependencyRecord, PackageManifestRecord } from "./models/dependency";
 import { PackageManagerService } from "./services/packageManagerService";
 import { PackageJsonService } from "./services/packageJsonService";
 import { getComparableDeclaredVersion } from "./services/registryUtils";
 import { RegistryService } from "./services/registryService";
-import {
-  buildMajorAwareUpgradeChoices,
-  getSafeUpgradeTargetVersion,
+import type {
   UpgradeChoice
 } from "./services/upgradeStrategyUtils";
-import { DependencyTreeProvider } from "./views/dependencyTreeProvider";
 import {
-  DependencyFilterMode,
+  buildMajorAwareUpgradeChoices,
+  getSafeUpgradeTargetVersion
+} from "./services/upgradeStrategyUtils";
+import { DependencyTreeProvider } from "./views/dependencyTreeProvider";
+import type {
+  DependencyFilterMode} from "./views/dependencyFilterUtils";
+import {
   formatDependencyFilterLabel
 } from "./views/dependencyFilterUtils";
 
@@ -213,7 +216,6 @@ async function handleUpgradeCommand(
   }
 
   treeProvider.startUpgrade(dependency);
-  let upgradeStateCleared = false;
 
   try {
     const result = await vscode.window.withProgress(
@@ -241,7 +243,6 @@ async function handleUpgradeCommand(
     );
 
     treeProvider.finishUpgrade(dependency);
-    upgradeStateCleared = true;
     const choice = await vscode.window.showInformationMessage(
       `Upgraded ${dependency.name} to ${result.targetVersion} using ${result.packageManager}. Saved as ${result.savedVersionRange}.`,
       "Show Output",
@@ -257,7 +258,6 @@ async function handleUpgradeCommand(
     }
   } catch (error) {
     treeProvider.finishUpgrade(dependency);
-    upgradeStateCleared = true;
     const message = error instanceof Error ? error.message : "Unknown error";
     const choice = await vscode.window.showErrorMessage(
       `Failed to upgrade ${dependency.name}: ${message}`,
@@ -276,10 +276,6 @@ async function handleUpgradeCommand(
           : "packageVision.upgradeDependency",
         dependency
       );
-    }
-  } finally {
-    if (!upgradeStateCleared) {
-      treeProvider.finishUpgrade(dependency);
     }
   }
 }

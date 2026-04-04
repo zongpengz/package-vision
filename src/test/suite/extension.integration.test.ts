@@ -2,9 +2,9 @@ import * as assert from "node:assert/strict";
 
 import * as vscode from "vscode";
 
-import { DependencyRecord } from "../../models/dependency";
+import type { DependencyRecord } from "../../models/dependency";
 import { PackageJsonService } from "../../services/packageJsonService";
-import { RegistryService } from "../../services/registryService";
+import type { RegistryService } from "../../services/registryService";
 import { DependencyTreeProvider } from "../../views/dependencyTreeProvider";
 
 suite("Package Vision Extension Host", () => {

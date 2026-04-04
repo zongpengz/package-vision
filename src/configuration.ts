@@ -1,11 +1,13 @@
 import * as vscode from "vscode";
 
+import type {
+  MajorUpdateStrategy} from "./services/upgradeStrategyUtils";
 import {
-  MajorUpdateStrategy,
   normalizeMajorUpdateStrategy
 } from "./services/upgradeStrategyUtils";
+import type {
+  VersionRangeStyle} from "./services/versionRangeUtils";
 import {
-  VersionRangeStyle,
   normalizeConfiguredVersionRangeStyle
 } from "./services/versionRangeUtils";
 
