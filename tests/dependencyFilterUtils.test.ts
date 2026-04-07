@@ -4,7 +4,8 @@ import { test } from "node:test";
 import type { DependencyRecord, PackageManifestRecord } from "../src/models/dependency";
 import {
   filterDependencies,
-  formatDependencyFilterLabel
+  formatDependencyFilterLabel,
+  formatDependencySearchLabel
 } from "../src/views/dependencyFilterUtils";
 
 function createManifest(): PackageManifestRecord {
@@ -82,6 +83,50 @@ test("filterDependencies can isolate upgrading dependencies", () => {
   );
 });
 
+test("filterDependencies can combine status filtering and search", () => {
+  const dependencies = [
+    createDependency("react", "outdated"),
+    createDependency("react-dom", "outdated"),
+    createDependency("typescript", "upToDate")
+  ];
+
+  const filteredDependencies = filterDependencies(
+    dependencies,
+    "outdated",
+    () => false,
+    "dom"
+  );
+
+  assert.deepEqual(
+    filteredDependencies.map((dependency) => dependency.name),
+    ["react-dom"]
+  );
+});
+
+test("filterDependencies applies search case-insensitively", () => {
+  const dependencies = [
+    createDependency("ReactQuery", "outdated"),
+    createDependency("zod", "outdated")
+  ];
+
+  const filteredDependencies = filterDependencies(
+    dependencies,
+    "all",
+    () => false,
+    "react"
+  );
+
+  assert.deepEqual(
+    filteredDependencies.map((dependency) => dependency.name),
+    ["ReactQuery"]
+  );
+});
+
 test("formatDependencyFilterLabel returns a user-friendly label", () => {
   assert.equal(formatDependencyFilterLabel("error"), "Lookup Failed");
+});
+
+test("formatDependencySearchLabel returns a trimmed user-friendly label", () => {
+  assert.equal(formatDependencySearchLabel("  react  "), "Search: react");
+  assert.equal(formatDependencySearchLabel("   "), undefined);
 });

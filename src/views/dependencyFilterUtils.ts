@@ -13,20 +13,28 @@ export type DependencyFilterMode =
 export function filterDependencies(
   dependencies: DependencyRecord[],
   filterMode: DependencyFilterMode,
-  isDependencyUpgrading: (dependency: DependencyRecord) => boolean
+  isDependencyUpgrading: (dependency: DependencyRecord) => boolean,
+  searchQuery = ""
 ): DependencyRecord[] {
-  if (filterMode === "all") {
-    return dependencies;
-  }
+  const trimmedSearchQuery = normalizeDependencySearchQuery(searchQuery);
 
   return dependencies.filter((dependency) => {
-    if (filterMode === "upgrading") {
-      // upgrading 不是 DependencyRecord 自带状态，而是运行时 UI 状态，
-      // 所以需要额外通过回调判断。
-      return isDependencyUpgrading(dependency);
+    const matchesFilter =
+      filterMode === "all"
+        ? true
+        : filterMode === "upgrading"
+          ? isDependencyUpgrading(dependency)
+          : dependency.status === filterMode;
+
+    if (!matchesFilter) {
+      return false;
     }
 
-    return dependency.status === filterMode;
+    if (!trimmedSearchQuery) {
+      return true;
+    }
+
+    return dependency.name.toLocaleLowerCase().includes(trimmedSearchQuery);
   });
 }
 
@@ -49,4 +57,15 @@ export function formatDependencyFilterLabel(
     default:
       return "All";
   }
+}
+
+export function normalizeDependencySearchQuery(searchQuery: string): string {
+  return searchQuery.trim().toLocaleLowerCase();
+}
+
+export function formatDependencySearchLabel(
+  searchQuery: string
+): string | undefined {
+  const trimmedSearchQuery = searchQuery.trim();
+  return trimmedSearchQuery ? `Search: ${trimmedSearchQuery}` : undefined;
 }

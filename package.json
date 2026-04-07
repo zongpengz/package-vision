@@ -99,6 +99,16 @@
         "command": "packageVision.clearFilter",
         "title": "Clear Dependency Filter",
         "icon": "$(close)"
+      },
+      {
+        "command": "packageVision.setSearch",
+        "title": "Search Dependencies",
+        "icon": "$(search)"
+      },
+      {
+        "command": "packageVision.clearSearch",
+        "title": "Clear Dependency Search",
+        "icon": "$(clear-all)"
       }
     ],
     "menus": {
@@ -124,8 +134,18 @@
           "group": "navigation"
         },
         {
+          "command": "packageVision.setSearch",
+          "when": "view == packageVision.dependencies",
+          "group": "navigation"
+        },
+        {
           "command": "packageVision.clearFilter",
           "when": "view == packageVision.dependencies && packageVision.hasActiveFilter",
+          "group": "navigation"
+        },
+        {
+          "command": "packageVision.clearSearch",
+          "when": "view == packageVision.dependencies && packageVision.hasActiveSearch",
           "group": "navigation"
         }
       ],

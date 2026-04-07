@@ -14,7 +14,8 @@ import type {
   DependencyFilterMode} from "./dependencyFilterUtils";
 import {
   filterDependencies,
-  formatDependencyFilterLabel
+  formatDependencyFilterLabel,
+  formatDependencySearchLabel
 } from "./dependencyFilterUtils";
 
 // DependencyTreeProvider 是 VS Code Tree View API 的核心实现。
@@ -34,6 +35,7 @@ export class DependencyTreeProvider
     new vscode.EventEmitter<PackageVisionNode | undefined | void>();
   private readonly upgradingDependencyKeys = new Set<string>();
   private filterMode: DependencyFilterMode = "all";
+  private searchQuery = "";
 
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
@@ -60,8 +62,33 @@ export class DependencyTreeProvider
       : undefined;
   }
 
+  getSearchQuery(): string {
+    return this.searchQuery;
+  }
+
+  hasActiveSearch(): boolean {
+    return this.searchQuery.length > 0;
+  }
+
+  getSearchLabel(): string | undefined {
+    return formatDependencySearchLabel(this.searchQuery);
+  }
+
+  getViewDescription(): string | undefined {
+    const labels = [this.getFilterLabel(), this.getSearchLabel()].filter(
+      (label): label is string => Boolean(label)
+    );
+
+    return labels.length > 0 ? labels.join(" • ") : undefined;
+  }
+
   setFilterMode(filterMode: DependencyFilterMode): void {
     this.filterMode = filterMode;
+    this.refresh();
+  }
+
+  setSearchQuery(searchQuery: string): void {
+    this.searchQuery = searchQuery.trim();
     this.refresh();
   }
 
@@ -174,14 +201,19 @@ export class DependencyTreeProvider
     const visibleDependencies = filterDependencies(
       enrichedDependencies,
       this.filterMode,
-      (dependency) => this.isDependencyUpgrading(dependency)
+      (dependency) => this.isDependencyUpgrading(dependency),
+      this.searchQuery
     );
 
     if (visibleDependencies.length === 0) {
       return [
         new EmptyStateItem(
-          "No dependencies match the current filter.",
-          `Current filter: ${formatDependencyFilterLabel(this.filterMode)}`
+          this.hasActiveFilter() && this.hasActiveSearch()
+            ? "No dependencies match the current filter and search."
+            : this.hasActiveSearch()
+              ? "No dependencies match the current search."
+              : "No dependencies match the current filter.",
+          buildActiveConstraintDescription(this.filterMode, this.searchQuery)
         )
       ];
     }
@@ -531,4 +563,18 @@ function createDependencyKey(dependency: DependencyRecord): string {
   // 同名依赖可能同时出现在不同 package.json 或不同 section，
   // 所以 key 需要把 manifest + section + name 一起纳入。
   return `${dependency.packageManifest.id}:${dependency.section}:${dependency.name}`;
+}
+
+function buildActiveConstraintDescription(
+  filterMode: DependencyFilterMode,
+  searchQuery: string
+): string {
+  const labels = [
+    filterMode === "all"
+      ? undefined
+      : `Filter: ${formatDependencyFilterLabel(filterMode)}`,
+    formatDependencySearchLabel(searchQuery)
+  ].filter((label): label is string => Boolean(label));
+
+  return labels.join(" • ");
 }

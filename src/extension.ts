@@ -50,12 +50,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     treeProvider.onDidChangeTreeData(() => {
-      // 过滤器标签属于 Tree View 外层的显示状态，
+      // 过滤器和搜索词都属于 Tree View 外层的显示状态，
       // 所以当树节点刷新时，也要顺手同步视图描述和上下文变量。
-      syncFilterPresentation(treeProvider, dependencyTreeView);
+      syncViewPresentation(treeProvider, dependencyTreeView);
     })
   );
-  syncFilterPresentation(treeProvider, dependencyTreeView);
+  syncViewPresentation(treeProvider, dependencyTreeView);
 
   context.subscriptions.push(
     vscode.commands.registerCommand("packageVision.refresh", async () => {
@@ -83,7 +83,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       treeProvider.setFilterMode(selection.filterMode);
-      syncFilterPresentation(treeProvider, dependencyTreeView);
+      syncViewPresentation(treeProvider, dependencyTreeView);
 
       vscode.window.setStatusBarMessage(
         selection.filterMode === "all"
@@ -97,9 +97,45 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("packageVision.clearFilter", () => {
       treeProvider.setFilterMode("all");
-      syncFilterPresentation(treeProvider, dependencyTreeView);
+      syncViewPresentation(treeProvider, dependencyTreeView);
       vscode.window.setStatusBarMessage(
         "Package Vision cleared the dependency filter.",
+        2500
+      );
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("packageVision.setSearch", async () => {
+      const currentSearchQuery = treeProvider.getSearchQuery();
+      const nextSearchQuery = await vscode.window.showInputBox({
+        title: "Search Dependencies",
+        prompt: "Filter the dependency list by package name",
+        placeHolder: "For example: react, eslint, vite",
+        value: currentSearchQuery
+      });
+      if (nextSearchQuery === undefined) {
+        return;
+      }
+
+      treeProvider.setSearchQuery(nextSearchQuery);
+      syncViewPresentation(treeProvider, dependencyTreeView);
+
+      vscode.window.setStatusBarMessage(
+        nextSearchQuery.trim().length > 0
+          ? `Package Vision search: ${nextSearchQuery.trim()}`
+          : "Package Vision cleared the dependency search.",
+        2500
+      );
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("packageVision.clearSearch", () => {
+      treeProvider.setSearchQuery("");
+      syncViewPresentation(treeProvider, dependencyTreeView);
+      vscode.window.setStatusBarMessage(
+        "Package Vision cleared the dependency search.",
         2500
       );
     })
@@ -508,16 +544,21 @@ function buildFilterQuickPickItems(currentFilterMode: DependencyFilterMode): Arr
   }));
 }
 
-function syncFilterPresentation(
+function syncViewPresentation(
   treeProvider: DependencyTreeProvider,
   dependencyTreeView: vscode.TreeView<unknown>
 ): void {
   // setContext 会影响 package.json 里 menus 的 when 条件。
   // 这就是“有筛选时显示 Clear Filter 按钮”的实现基础。
-  dependencyTreeView.description = treeProvider.getFilterLabel();
+  dependencyTreeView.description = treeProvider.getViewDescription();
   void vscode.commands.executeCommand(
     "setContext",
     "packageVision.hasActiveFilter",
     treeProvider.hasActiveFilter()
+  );
+  void vscode.commands.executeCommand(
+    "setContext",
+    "packageVision.hasActiveSearch",
+    treeProvider.hasActiveSearch()
   );
 }

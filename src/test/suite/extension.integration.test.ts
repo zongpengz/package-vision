@@ -28,6 +28,8 @@ suite("Package Vision Extension Host", () => {
     assert.ok(commands.includes("packageVision.refresh"));
     assert.ok(commands.includes("packageVision.setFilter"));
     assert.ok(commands.includes("packageVision.clearFilter"));
+    assert.ok(commands.includes("packageVision.setSearch"));
+    assert.ok(commands.includes("packageVision.clearSearch"));
     assert.ok(commands.includes("packageVision.upgradeDependency"));
     assert.ok(commands.includes("packageVision.upgradeDependencyToLatestMajor"));
     assert.ok(commands.includes("packageVision.showOutput"));
@@ -109,7 +111,42 @@ suite("Package Vision Extension Host", () => {
       getTreeItemLabel(emptyStateItem),
       "No dependencies match the current filter."
     );
-    assert.equal(emptyStateItem.description, "Current filter: Lookup Failed");
+    assert.equal(emptyStateItem.description, "Filter: Lookup Failed");
+  });
+
+  test("combines search with the current filter before rendering the tree", async () => {
+    const treeProvider = new DependencyTreeProvider(
+      new PackageJsonService(),
+      createStubRegistryService()
+    );
+    treeProvider.setFilterMode("outdated");
+    treeProvider.setSearchQuery("react");
+
+    const topLevelNodes = await treeProvider.getChildren();
+    const topLevelLabels = topLevelNodes.map((node) =>
+      getTreeItemLabel(treeProvider.getTreeItem(node))
+    );
+
+    assert.deepEqual(topLevelLabels, ["@fixture/web"]);
+    assert.equal(treeProvider.getViewDescription(), "Outdated • Search: react");
+  });
+
+  test("shows an empty state when no dependency matches the active search", async () => {
+    const treeProvider = new DependencyTreeProvider(
+      new PackageJsonService(),
+      createStubRegistryService()
+    );
+    treeProvider.setSearchQuery("svelte");
+
+    const topLevelNodes = await treeProvider.getChildren();
+    assert.equal(topLevelNodes.length, 1);
+
+    const emptyStateItem = treeProvider.getTreeItem(topLevelNodes[0]);
+    assert.equal(
+      getTreeItemLabel(emptyStateItem),
+      "No dependencies match the current search."
+    );
+    assert.equal(emptyStateItem.description, "Search: svelte");
   });
 
   test("refresh and output commands execute without throwing", async () => {
