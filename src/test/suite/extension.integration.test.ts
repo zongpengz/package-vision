@@ -5,6 +5,7 @@ import * as vscode from "vscode";
 import type { DependencyRecord } from "../../models/dependency";
 import { PackageJsonService } from "../../services/packageJsonService";
 import type { RegistryService } from "../../services/registryService";
+import { getSafeUpgradeCandidates } from "../../services/upgradeStrategyUtils";
 import { DependencyTreeProvider } from "../../views/dependencyTreeProvider";
 
 // 这一组测试不追求覆盖所有细节，而是验证“扩展在 VS Code 里能不能基本跑通”。
@@ -32,6 +33,7 @@ suite("Package Vision Extension Host", () => {
     assert.ok(commands.includes("packageVision.clearSearch"));
     assert.ok(commands.includes("packageVision.upgradeDependency"));
     assert.ok(commands.includes("packageVision.upgradeDependencyToLatestMajor"));
+    assert.ok(commands.includes("packageVision.upgradeSafeDependencies"));
     assert.ok(commands.includes("packageVision.showOutput"));
   });
 
@@ -163,6 +165,34 @@ suite("Package Vision Extension Host", () => {
 
     assert.deepEqual(topLevelLabels, ["@fixture/web"]);
     assert.equal(treeProvider.getViewDescription(), "Outdated • Search: react");
+  });
+
+  test("returns safe upgrade candidates from the currently visible dependencies", async () => {
+    const treeProvider = new DependencyTreeProvider(
+      new PackageJsonService(),
+      createStubRegistryService()
+    );
+    treeProvider.setFilterMode("outdated");
+
+    const visibleDependencies = await treeProvider.getVisibleDependencies();
+    const safeCandidates = getSafeUpgradeCandidates(visibleDependencies);
+
+    assert.deepEqual(
+      safeCandidates.map((candidate) => ({
+        name: candidate.dependency.name,
+        targetVersion: candidate.targetVersion
+      })),
+      [
+        {
+          name: "zod",
+          targetVersion: "3.23.8"
+        },
+        {
+          name: "react",
+          targetVersion: "18.3.1"
+        }
+      ]
+    );
   });
 
   test("shows an empty state when no dependency matches the active search", async () => {

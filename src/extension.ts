@@ -13,6 +13,7 @@ import type {
 } from "./services/upgradeStrategyUtils";
 import {
   buildMajorAwareUpgradeChoices,
+  getSafeUpgradeCandidates,
   getSafeUpgradeTargetVersion
 } from "./services/upgradeStrategyUtils";
 import { DependencyTreeProvider } from "./views/dependencyTreeProvider";
@@ -194,6 +195,18 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "packageVision.upgradeSafeDependencies",
+      async () => {
+        await handleBatchSafeUpgradeCommand(
+          treeProvider,
+          packageManagerService
+        );
+      }
+    )
+  );
+
+  context.subscriptions.push(
     vscode.commands.registerCommand("packageVision.showOutput", () => {
       packageManagerService.showOutput();
     })
@@ -214,6 +227,130 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {}
+
+async function handleBatchSafeUpgradeCommand(
+  treeProvider: DependencyTreeProvider,
+  packageManagerService: PackageManagerService
+): Promise<void> {
+  let visibleDependencies: DependencyRecord[];
+
+  try {
+    visibleDependencies = await treeProvider.getVisibleDependencies();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    void vscode.window.showErrorMessage(
+      `Package Vision could not prepare the safe upgrade list: ${message}`
+    );
+    return;
+  }
+
+  if (visibleDependencies.length === 0) {
+    void vscode.window.showInformationMessage(
+      "No dependencies are visible right now. Adjust the current filter or search and try again."
+    );
+    return;
+  }
+
+  const visibleCandidates = getSafeUpgradeCandidates(visibleDependencies);
+  const candidates = visibleCandidates.filter(
+    ({ dependency }) => !treeProvider.isDependencyUpgrading(dependency)
+  );
+  const skippedCount = visibleDependencies.length - candidates.length;
+
+  if (candidates.length === 0) {
+    void vscode.window.showInformationMessage(
+      "No currently visible dependencies can be upgraded safely within the current major version."
+    );
+    return;
+  }
+
+  const affectedPackages = Array.from(
+    new Set(
+      candidates.map(({ dependency }) => dependency.packageManifest.displayName)
+    )
+  ).sort((left, right) => left.localeCompare(right));
+
+  const confirmAction = await vscode.window.showInformationMessage(
+    buildBatchUpgradeConfirmationMessage(
+      candidates.length,
+      affectedPackages,
+      skippedCount
+    ),
+    { modal: true },
+    "Upgrade Safe Dependencies"
+  );
+  if (confirmAction !== "Upgrade Safe Dependencies") {
+    return;
+  }
+
+  const failures: Array<{ dependency: DependencyRecord; message: string }> = [];
+  let successCount = 0;
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Upgrading safe dependencies...",
+      cancellable: false
+    },
+    async (progress) => {
+      for (const [index, candidate] of candidates.entries()) {
+        const progressIncrement = Math.floor(100 / candidates.length);
+        progress.report({
+          increment: progressIncrement,
+          message: `[${index + 1}/${candidates.length}] ${candidate.dependency.name} -> ${candidate.targetVersion}`
+        });
+
+        treeProvider.startUpgrade(candidate.dependency);
+
+        try {
+          await packageManagerService.upgradeDependency(
+            candidate.dependency,
+            candidate.targetVersion
+          );
+          successCount += 1;
+        } catch (error) {
+          failures.push({
+            dependency: candidate.dependency,
+            message: error instanceof Error ? error.message : "Unknown error"
+          });
+        } finally {
+          treeProvider.finishUpgrade(candidate.dependency);
+        }
+      }
+    }
+  );
+
+  treeProvider.refresh();
+
+  const summaryMessage = buildBatchUpgradeSummaryMessage(
+    successCount,
+    failures.length,
+    skippedCount
+  );
+
+  if (failures.length > 0) {
+    const choice = await vscode.window.showWarningMessage(
+      `${summaryMessage} Failed: ${failures
+        .map(({ dependency }) => dependency.name)
+        .join(", ")}.`,
+      "Show Output"
+    );
+
+    if (choice === "Show Output") {
+      packageManagerService.showOutput();
+    }
+
+    return;
+  }
+
+  const choice = await vscode.window.showInformationMessage(
+    summaryMessage,
+    "Show Output"
+  );
+  if (choice === "Show Output") {
+    packageManagerService.showOutput();
+  }
+}
 
 async function handleUpgradeCommand(
   target: unknown,
@@ -460,6 +597,40 @@ function buildUpgradeConfirmationMessage(
       : "";
 
   return `Upgrade ${dependency.name} from ${dependency.declaredVersion} to ${upgradeChoice.targetVersion}? ${sameMajorMessage}Package Vision will update package.json and lock files.`;
+}
+
+function buildBatchUpgradeConfirmationMessage(
+  candidateCount: number,
+  affectedPackages: string[],
+  skippedCount: number
+): string {
+  const packageMessage =
+    affectedPackages.length === 1
+      ? `Affects 1 package: ${affectedPackages[0]}.`
+      : `Affects ${affectedPackages.length} packages: ${affectedPackages.join(", ")}.`;
+  const skippedMessage =
+    skippedCount > 0
+      ? ` ${skippedCount} visible dependencies will be skipped because they are already upgrading or do not have a safe target in the current major.`
+      : "";
+
+  return `Upgrade ${candidateCount} visible dependencies within their current major version? ${packageMessage}${skippedMessage} Package Vision will update package.json files and lockfiles as needed.`;
+}
+
+function buildBatchUpgradeSummaryMessage(
+  successCount: number,
+  failureCount: number,
+  skippedCount: number
+): string {
+  const parts = [`${successCount} upgraded`];
+  if (failureCount > 0) {
+    parts.push(`${failureCount} failed`);
+  }
+
+  if (skippedCount > 0) {
+    parts.push(`${skippedCount} skipped`);
+  }
+
+  return `Safe upgrade finished: ${parts.join(", ")}.`;
 }
 
 function resolveDependencyRecord(target: unknown): DependencyRecord | undefined {

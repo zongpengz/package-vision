@@ -49,6 +49,11 @@ export class DependencyTreeProvider
     this.onDidChangeTreeDataEmitter.fire();
   }
 
+  async getVisibleDependencies(): Promise<DependencyRecord[]> {
+    const dependencies = await this.packageJsonService.loadDependencies();
+    return this.buildVisibleDependencies(dependencies);
+  }
+
   getFilterMode(): DependencyFilterMode {
     return this.filterMode;
   }
@@ -196,17 +201,7 @@ export class DependencyTreeProvider
       ];
     }
 
-    const analyzedDependencies = annotateVersionDrift(dependencies);
-
-    // 先读本地 package.json，再补充 npm registry 的最新版本信息。
-    const enrichedDependencies =
-      await this.registryService.enrichDependencies(analyzedDependencies);
-    const visibleDependencies = filterDependencies(
-      enrichedDependencies,
-      this.filterMode,
-      (dependency) => this.isDependencyUpgrading(dependency),
-      this.searchQuery
-    );
+    const visibleDependencies = await this.buildVisibleDependencies(dependencies);
 
     if (visibleDependencies.length === 0) {
       return [
@@ -276,6 +271,23 @@ export class DependencyTreeProvider
       .filter(
         (item): item is DependencySectionItem => item !== undefined
       );
+  }
+
+  private async buildVisibleDependencies(
+    dependencies: DependencyRecord[]
+  ): Promise<DependencyRecord[]> {
+    const analyzedDependencies = annotateVersionDrift(dependencies);
+
+    // 先读本地 package.json，再补充 npm registry 的最新版本信息。
+    const enrichedDependencies =
+      await this.registryService.enrichDependencies(analyzedDependencies);
+
+    return filterDependencies(
+      enrichedDependencies,
+      this.filterMode,
+      (dependency) => this.isDependencyUpgrading(dependency),
+      this.searchQuery
+    );
   }
 }
 

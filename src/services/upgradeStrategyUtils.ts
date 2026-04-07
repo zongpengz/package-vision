@@ -17,6 +17,11 @@ export interface UpgradeChoice {
   isMajorUpdate: boolean;
 }
 
+export interface SafeUpgradeCandidate {
+  dependency: DependencyRecord;
+  targetVersion: string;
+}
+
 export function normalizeMajorUpdateStrategy(
   value: unknown
 ): MajorUpdateStrategy {
@@ -58,6 +63,24 @@ export function getDefaultDisplayTargetVersion(
   // 视图默认优先展示 safe target，
   // 这样用户第一眼看到的是更谨慎、更符合实际升级习惯的目标。
   return getSafeUpgradeTargetVersion(dependency) ?? dependency.latestVersion;
+}
+
+export function getSafeUpgradeCandidates(
+  dependencies: DependencyRecord[]
+): SafeUpgradeCandidate[] {
+  return dependencies.flatMap((dependency) => {
+    const targetVersion = getSafeUpgradeTargetVersion(dependency);
+    if (dependency.status !== "outdated" || !targetVersion) {
+      return [];
+    }
+
+    return [
+      {
+        dependency,
+        targetVersion
+      }
+    ];
+  });
 }
 
 export function buildMajorAwareUpgradeChoices(

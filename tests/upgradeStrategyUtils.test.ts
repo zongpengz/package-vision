@@ -5,6 +5,7 @@ import type { DependencyRecord, PackageManifestRecord } from "../src/models/depe
 import {
   buildMajorAwareUpgradeChoices,
   getDefaultDisplayTargetVersion,
+  getSafeUpgradeCandidates,
   getSafeUpgradeTargetVersion,
   normalizeMajorUpdateStrategy
 } from "../src/services/upgradeStrategyUtils";
@@ -63,4 +64,37 @@ test("buildMajorAwareUpgradeChoices returns both safe and major upgrade options"
   );
   assert.equal(choices[0].isMajorUpdate, false);
   assert.equal(choices[1].isMajorUpdate, true);
+});
+
+test("getSafeUpgradeCandidates only includes outdated dependencies with a safe target", () => {
+  const candidates = getSafeUpgradeCandidates([
+    createDependency(),
+    createDependency({
+      name: "vite",
+      latestVersion: "7.0.0",
+      latestSafeVersion: undefined,
+      hasMajorUpdate: true,
+      status: "outdated"
+    }),
+    createDependency({
+      name: "zod",
+      latestVersion: "3.24.0",
+      latestSafeVersion: "3.24.0",
+      hasMajorUpdate: false,
+      status: "upToDate"
+    })
+  ]);
+
+  assert.deepEqual(
+    candidates.map((candidate) => ({
+      name: candidate.dependency.name,
+      targetVersion: candidate.targetVersion
+    })),
+    [
+      {
+        name: "react",
+        targetVersion: "2.5.4"
+      }
+    ]
+  );
 });

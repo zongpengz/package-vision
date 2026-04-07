@@ -109,6 +109,11 @@
         "command": "packageVision.clearSearch",
         "title": "Clear Dependency Search",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "packageVision.upgradeSafeDependencies",
+        "title": "Upgrade Safe Dependencies",
+        "icon": "$(arrow-up)"
       }
     ],
     "menus": {
@@ -120,6 +125,11 @@
         },
         {
           "command": "packageVision.openPackageJson",
+          "when": "view == packageVision.dependencies",
+          "group": "navigation"
+        },
+        {
+          "command": "packageVision.upgradeSafeDependencies",
           "when": "view == packageVision.dependencies",
           "group": "navigation"
         },
