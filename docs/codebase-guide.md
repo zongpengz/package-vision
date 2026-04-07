@@ -135,6 +135,7 @@ package-vision/
 - 注册视图
 - 监听保存事件
 - 协调“升级依赖”这类跨层动作
+- 管理 package scope、筛选和搜索这类视图状态入口
 
 可以把它理解成“组装层”。
 
@@ -192,7 +193,7 @@ package-vision/
 
 - `dependencyFilterUtils.ts`
 
-负责和筛选、搜索相关的纯逻辑。
+负责和 package scope、筛选、搜索相关的纯逻辑。
 
 ### `src/test/`
 
@@ -243,6 +244,13 @@ package-vision/
 2. `src/services/dependencyAnalysisUtils.ts`
 3. `src/views/dependencyTreeProvider.ts`
 4. `src/views/dependencyFilterUtils.ts`
+
+如果你想理解这次新增的 package scope 视图聚焦能力，可以重点顺着这条链路看：
+
+1. `src/extension.ts`
+2. `src/views/dependencyTreeProvider.ts`
+3. `src/views/dependencyFilterUtils.ts`
+4. `src/test/suite/extension.integration.test.ts`
 
 ## 7. 你读代码时最该关注什么
 

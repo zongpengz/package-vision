@@ -15,7 +15,9 @@ import type {
   DependencyFilterMode} from "./dependencyFilterUtils";
 import {
   filterDependencies,
+  filterDependenciesByPackageScope,
   formatDependencyFilterLabel,
+  formatDependencyPackageScopeLabel,
   formatDependencySearchLabel
 } from "./dependencyFilterUtils";
 
@@ -36,6 +38,7 @@ export class DependencyTreeProvider
     new vscode.EventEmitter<PackageVisionNode | undefined | void>();
   private readonly upgradingDependencyKeys = new Set<string>();
   private filterMode: DependencyFilterMode = "all";
+  private packageScope?: PackageManifestRecord;
   private searchQuery = "";
 
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
@@ -68,6 +71,18 @@ export class DependencyTreeProvider
       : undefined;
   }
 
+  getPackageScope(): PackageManifestRecord | undefined {
+    return this.packageScope;
+  }
+
+  hasActivePackageScope(): boolean {
+    return this.packageScope !== undefined;
+  }
+
+  getPackageScopeLabel(): string | undefined {
+    return formatDependencyPackageScopeLabel(this.packageScope);
+  }
+
   getSearchQuery(): string {
     return this.searchQuery;
   }
@@ -81,15 +96,22 @@ export class DependencyTreeProvider
   }
 
   getViewDescription(): string | undefined {
-    const labels = [this.getFilterLabel(), this.getSearchLabel()].filter(
-      (label): label is string => Boolean(label)
-    );
+    const labels = [
+      this.getPackageScopeLabel(),
+      this.getFilterLabel(),
+      this.getSearchLabel()
+    ].filter((label): label is string => Boolean(label));
 
     return labels.length > 0 ? labels.join(" • ") : undefined;
   }
 
   setFilterMode(filterMode: DependencyFilterMode): void {
     this.filterMode = filterMode;
+    this.refresh();
+  }
+
+  setPackageScope(packageManifest?: PackageManifestRecord): void {
+    this.packageScope = packageManifest;
     this.refresh();
   }
 
@@ -202,18 +224,38 @@ export class DependencyTreeProvider
     }
 
     const visibleDependencies = await this.buildVisibleDependencies(dependencies);
+    const scopedPackageManifest = this.resolveScopedPackageManifest(
+      packageManifests
+    );
+
+    if (this.hasActivePackageScope() && !scopedPackageManifest) {
+      return [
+        new EmptyStateItem(
+          "The selected package scope is no longer available.",
+          this.getPackageScopeLabel() ?? "Choose another package scope."
+        )
+      ];
+    }
 
     if (visibleDependencies.length === 0) {
       return [
         new EmptyStateItem(
-          this.hasActiveFilter() && this.hasActiveSearch()
-            ? "No dependencies match the current filter and search."
-            : this.hasActiveSearch()
-              ? "No dependencies match the current search."
-              : "No dependencies match the current filter.",
-          buildActiveConstraintDescription(this.filterMode, this.searchQuery)
+          buildNoMatchingDependenciesLabel(
+            this.hasActivePackageScope(),
+            this.hasActiveFilter(),
+            this.hasActiveSearch()
+          ),
+          buildActiveConstraintDescription(
+            this.getPackageScopeLabel(),
+            this.filterMode,
+            this.searchQuery
+          )
         )
       ];
+    }
+
+    if (scopedPackageManifest && this.hasActivePackageScope()) {
+      return this.buildSectionItems(scopedPackageManifest, visibleDependencies);
     }
 
     if (packageManifests.length === 1) {
@@ -277,16 +319,32 @@ export class DependencyTreeProvider
     dependencies: DependencyRecord[]
   ): Promise<DependencyRecord[]> {
     const analyzedDependencies = annotateVersionDrift(dependencies);
+    const scopedDependencies = filterDependenciesByPackageScope(
+      analyzedDependencies,
+      this.packageScope?.id
+    );
 
     // 先读本地 package.json，再补充 npm registry 的最新版本信息。
     const enrichedDependencies =
-      await this.registryService.enrichDependencies(analyzedDependencies);
+      await this.registryService.enrichDependencies(scopedDependencies);
 
     return filterDependencies(
       enrichedDependencies,
       this.filterMode,
       (dependency) => this.isDependencyUpgrading(dependency),
       this.searchQuery
+    );
+  }
+
+  private resolveScopedPackageManifest(
+    packageManifests: PackageManifestRecord[]
+  ): PackageManifestRecord | undefined {
+    if (!this.packageScope) {
+      return undefined;
+    }
+
+    return packageManifests.find(
+      (packageManifest) => packageManifest.id === this.packageScope?.id
     );
   }
 }
@@ -611,10 +669,12 @@ function createDependencyKey(dependency: DependencyRecord): string {
 }
 
 function buildActiveConstraintDescription(
+  packageScopeLabel: string | undefined,
   filterMode: DependencyFilterMode,
   searchQuery: string
 ): string {
   const labels = [
+    packageScopeLabel,
     filterMode === "all"
       ? undefined
       : `Filter: ${formatDependencyFilterLabel(filterMode)}`,
@@ -622,4 +682,36 @@ function buildActiveConstraintDescription(
   ].filter((label): label is string => Boolean(label));
 
   return labels.join(" • ");
+}
+
+function buildNoMatchingDependenciesLabel(
+  hasActivePackageScope: boolean,
+  hasActiveFilter: boolean,
+  hasActiveSearch: boolean
+): string {
+  if (hasActivePackageScope && hasActiveFilter && hasActiveSearch) {
+    return "No dependencies match the current package scope, filter, and search.";
+  }
+
+  if (hasActivePackageScope && hasActiveFilter) {
+    return "No dependencies match the current package scope and filter.";
+  }
+
+  if (hasActivePackageScope && hasActiveSearch) {
+    return "No dependencies match the current package scope and search.";
+  }
+
+  if (hasActivePackageScope) {
+    return "No dependencies match the current package scope.";
+  }
+
+  if (hasActiveFilter && hasActiveSearch) {
+    return "No dependencies match the current filter and search.";
+  }
+
+  if (hasActiveSearch) {
+    return "No dependencies match the current search.";
+  }
+
+  return "No dependencies match the current filter.";
 }

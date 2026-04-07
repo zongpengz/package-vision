@@ -29,6 +29,8 @@ suite("Package Vision Extension Host", () => {
     assert.ok(commands.includes("packageVision.refresh"));
     assert.ok(commands.includes("packageVision.setFilter"));
     assert.ok(commands.includes("packageVision.clearFilter"));
+    assert.ok(commands.includes("packageVision.setPackageScope"));
+    assert.ok(commands.includes("packageVision.clearPackageScope"));
     assert.ok(commands.includes("packageVision.setSearch"));
     assert.ok(commands.includes("packageVision.clearSearch"));
     assert.ok(commands.includes("packageVision.upgradeDependency"));
@@ -167,6 +169,70 @@ suite("Package Vision Extension Host", () => {
     assert.equal(treeProvider.getViewDescription(), "Outdated • Search: react");
   });
 
+  test("can focus the tree on a single package scope", async () => {
+    const packageJsonService = new PackageJsonService();
+    const manifests = await packageJsonService.loadPackageManifests();
+    const rootManifest = manifests.find(
+      (manifest) => manifest.isWorkspaceRootPackage
+    );
+    assert.ok(rootManifest);
+
+    const treeProvider = new DependencyTreeProvider(
+      packageJsonService,
+      createStubRegistryService()
+    );
+    treeProvider.setPackageScope(rootManifest);
+
+    const topLevelNodes = await treeProvider.getChildren();
+
+    assert.deepEqual(
+      topLevelNodes.map((node) => getTreeItemLabel(treeProvider.getTreeItem(node))),
+      ["Dependencies", "Dev Dependencies"]
+    );
+    assert.equal(
+      treeProvider.getViewDescription(),
+      "Package: fixture-root (root)"
+    );
+
+    const dependencyNodes = await treeProvider.getChildren(topLevelNodes[0]);
+    assert.deepEqual(
+      dependencyNodes.map((node) => getTreeItemLabel(treeProvider.getTreeItem(node))),
+      ["shared-lib", "typescript"]
+    );
+  });
+
+  test("combines package scope with status filters when rendering the tree", async () => {
+    const packageJsonService = new PackageJsonService();
+    const manifests = await packageJsonService.loadPackageManifests();
+    const webManifest = manifests.find(
+      (manifest) => manifest.displayName === "@fixture/web"
+    );
+    assert.ok(webManifest);
+
+    const treeProvider = new DependencyTreeProvider(
+      packageJsonService,
+      createStubRegistryService()
+    );
+    treeProvider.setPackageScope(webManifest);
+    treeProvider.setFilterMode("outdated");
+
+    const topLevelNodes = await treeProvider.getChildren();
+    assert.deepEqual(
+      topLevelNodes.map((node) => getTreeItemLabel(treeProvider.getTreeItem(node))),
+      ["Dependencies"]
+    );
+    assert.equal(
+      treeProvider.getViewDescription(),
+      "Package: @fixture/web • Outdated"
+    );
+
+    const dependencyNodes = await treeProvider.getChildren(topLevelNodes[0]);
+    assert.deepEqual(
+      dependencyNodes.map((node) => getTreeItemLabel(treeProvider.getTreeItem(node))),
+      ["react"]
+    );
+  });
+
   test("returns safe upgrade candidates from the currently visible dependencies", async () => {
     const treeProvider = new DependencyTreeProvider(
       new PackageJsonService(),
@@ -189,6 +255,40 @@ suite("Package Vision Extension Host", () => {
         },
         {
           name: "react",
+          targetVersion: "18.3.1"
+        }
+      ]
+    );
+  });
+
+  test("limits safe upgrade candidates to the selected package scope", async () => {
+    const packageJsonService = new PackageJsonService();
+    const manifests = await packageJsonService.loadPackageManifests();
+    const webManifest = manifests.find(
+      (manifest) => manifest.displayName === "@fixture/web"
+    );
+    assert.ok(webManifest);
+
+    const treeProvider = new DependencyTreeProvider(
+      packageJsonService,
+      createStubRegistryService()
+    );
+    treeProvider.setPackageScope(webManifest);
+    treeProvider.setFilterMode("outdated");
+
+    const visibleDependencies = await treeProvider.getVisibleDependencies();
+    const safeCandidates = getSafeUpgradeCandidates(visibleDependencies);
+
+    assert.deepEqual(
+      safeCandidates.map((candidate) => ({
+        name: candidate.dependency.name,
+        packageName: candidate.dependency.packageManifest.displayName,
+        targetVersion: candidate.targetVersion
+      })),
+      [
+        {
+          name: "react",
+          packageName: "@fixture/web",
           targetVersion: "18.3.1"
         }
       ]

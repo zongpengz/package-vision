@@ -107,6 +107,50 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
+    vscode.commands.registerCommand("packageVision.setPackageScope", async () => {
+      const manifests = await packageJsonService.loadPackageManifests();
+      if (manifests.length === 0) {
+        void vscode.window.showWarningMessage(
+          "No package.json files found in the workspace."
+        );
+        return;
+      }
+
+      const selection = await vscode.window.showQuickPick(
+        buildPackageScopeQuickPickItems(
+          manifests,
+          treeProvider.getPackageScope()?.id
+        ),
+        {
+          placeHolder: "Choose which package to show in the dependency view"
+        }
+      );
+      if (!selection) {
+        return;
+      }
+
+      treeProvider.setPackageScope(selection.manifest);
+      syncViewPresentation(treeProvider, dependencyTreeView);
+
+      vscode.window.setStatusBarMessage(
+        buildPackageScopeStatusMessage(selection.manifest),
+        2500
+      );
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("packageVision.clearPackageScope", () => {
+      treeProvider.setPackageScope(undefined);
+      syncViewPresentation(treeProvider, dependencyTreeView);
+      vscode.window.setStatusBarMessage(
+        "Package Vision now shows dependencies from all packages.",
+        2500
+      );
+    })
+  );
+
+  context.subscriptions.push(
     vscode.commands.registerCommand("packageVision.setSearch", async () => {
       const currentSearchQuery = treeProvider.getSearchQuery();
       const nextSearchQuery = await vscode.window.showInputBox({
@@ -149,7 +193,8 @@ export function activate(context: vscode.ExtensionContext): void {
         // 这里刻意只处理“工作区根目录”的 package.json，
         // monorepo 模式下，如果存在多个 package.json，会先让用户选择要打开哪一个。
         const packageManifest = await resolvePackageManifest(
-          packageJsonService
+          packageJsonService,
+          treeProvider.getPackageScope()?.id
         );
         if (!packageManifest) {
           void vscode.window.showWarningMessage(
@@ -246,11 +291,14 @@ async function handleBatchSafeUpgradeCommand(
 
   if (visibleDependencies.length === 0) {
     void vscode.window.showInformationMessage(
-      "No dependencies are visible right now. Adjust the current filter or search and try again."
+      "No dependencies are visible right now. Adjust the current package scope, filter, or search and try again."
     );
     return;
   }
 
+  // 这里刻意复用“当前可见依赖”这一层结果。
+  // 这意味着批量保守升级天然会尊重当前 package scope、状态筛选和搜索词，
+  // 不会偷偷跨到用户没有显示出来的其他 package。
   const visibleCandidates = getSafeUpgradeCandidates(visibleDependencies);
   const candidates = visibleCandidates.filter(
     ({ dependency }) => !treeProvider.isDependencyUpgrading(dependency)
@@ -662,7 +710,8 @@ function isDependencyRecord(value: unknown): value is DependencyRecord {
 }
 
 async function resolvePackageManifest(
-  packageJsonService: PackageJsonService
+  packageJsonService: PackageJsonService,
+  preferredManifestId?: string
 ): Promise<PackageManifestRecord | undefined> {
   const manifests = await packageJsonService.loadPackageManifests();
   if (manifests.length === 0) {
@@ -672,6 +721,15 @@ async function resolvePackageManifest(
   if (manifests.length === 1) {
     // 单包项目不打扰用户，直接返回。
     return manifests[0];
+  }
+
+  if (preferredManifestId) {
+    const preferredManifest = manifests.find(
+      (manifest) => manifest.id === preferredManifestId
+    );
+    if (preferredManifest) {
+      return preferredManifest;
+    }
   }
 
   // 多 package.json 场景下再让用户选，这样单仓库和 monorepo 的体验都比较自然。
@@ -691,6 +749,35 @@ async function resolvePackageManifest(
   );
 
   return selection?.manifest;
+}
+
+function buildPackageScopeQuickPickItems(
+  manifests: PackageManifestRecord[],
+  currentPackageScopeId?: string
+): Array<{
+  label: string;
+  description?: string;
+  detail?: string;
+  manifest?: PackageManifestRecord;
+}> {
+  return [
+    {
+      label: "All Packages",
+      description:
+        currentPackageScopeId === undefined ? "Current scope" : undefined,
+      detail: "Show dependencies from every package.json in the workspace",
+      manifest: undefined
+    },
+    ...manifests.map((manifest) => ({
+      label: manifest.displayName,
+      description:
+        manifest.id === currentPackageScopeId ? "Current scope" : undefined,
+      detail: manifest.isWorkspaceRootPackage
+        ? `workspace root • ${manifest.packageJsonPath}`
+        : `${manifest.relativeDirPath} • ${manifest.packageJsonPath}`,
+      manifest
+    }))
+  ];
 }
 
 function buildFilterQuickPickItems(currentFilterMode: DependencyFilterMode): Array<{
@@ -716,6 +803,18 @@ function buildFilterQuickPickItems(currentFilterMode: DependencyFilterMode): Arr
   }));
 }
 
+function buildPackageScopeStatusMessage(
+  packageManifest?: PackageManifestRecord
+): string {
+  if (!packageManifest) {
+    return "Package Vision now shows dependencies from all packages.";
+  }
+
+  return packageManifest.isWorkspaceRootPackage
+    ? `Package Vision scope: ${packageManifest.displayName} (workspace root).`
+    : `Package Vision scope: ${packageManifest.displayName}.`;
+}
+
 function syncViewPresentation(
   treeProvider: DependencyTreeProvider,
   dependencyTreeView: vscode.TreeView<unknown>
@@ -732,5 +831,10 @@ function syncViewPresentation(
     "setContext",
     "packageVision.hasActiveSearch",
     treeProvider.hasActiveSearch()
+  );
+  void vscode.commands.executeCommand(
+    "setContext",
+    "packageVision.hasActivePackageScope",
+    treeProvider.hasActivePackageScope()
   );
 }

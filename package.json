@@ -96,6 +96,16 @@
         "icon": "$(filter)"
       },
       {
+        "command": "packageVision.setPackageScope",
+        "title": "Choose Package Scope",
+        "icon": "$(folder)"
+      },
+      {
+        "command": "packageVision.clearPackageScope",
+        "title": "Clear Package Scope",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "packageVision.clearFilter",
         "title": "Clear Dependency Filter",
         "icon": "$(close)"
@@ -144,6 +154,11 @@
           "group": "navigation"
         },
         {
+          "command": "packageVision.setPackageScope",
+          "when": "view == packageVision.dependencies",
+          "group": "navigation"
+        },
+        {
           "command": "packageVision.setSearch",
           "when": "view == packageVision.dependencies",
           "group": "navigation"
@@ -151,6 +166,11 @@
         {
           "command": "packageVision.clearFilter",
           "when": "view == packageVision.dependencies && packageVision.hasActiveFilter",
+          "group": "navigation"
+        },
+        {
+          "command": "packageVision.clearPackageScope",
+          "when": "view == packageVision.dependencies && packageVision.hasActivePackageScope",
           "group": "navigation"
         },
         {

@@ -30,7 +30,7 @@
 - monorepo 版本分裂分析
 - monorepo 场景下各个包管理器的升级命令构造
 - 升级后的版本范围写回策略
-- 依赖状态快速筛选和搜索组合逻辑
+- 依赖状态快速筛选、package scope 和搜索组合逻辑
 
 运行命令：
 
@@ -51,9 +51,10 @@ npm run test:unit
 - 扩展命令是否注册成功
 - 多个 `package.json` 的工作区扫描
 - Tree View 在 monorepo 下的分组渲染
-- 快速筛选和搜索在真实 Extension Host 中的结果
+- package scope、快速筛选和搜索在真实 Extension Host 中的结果
 - 版本分裂提示是否在 fixture 工作区里正常出现
 - 当前可见依赖能否产出批量保守升级候选集
+- 批量保守升级是否严格遵守当前 package scope
 
 运行命令：
 
@@ -169,6 +170,7 @@ package-vision-0.2.0.vsix
 建议在这些场景补测试：
 
 - 新增新的筛选模式
+- 新增新的 package scope 或范围过滤规则
 - 新增新的搜索或组合筛选规则
 - 新增新的依赖类型，例如 `peerDependencies`
 - 新增新的跨 package 分析能力

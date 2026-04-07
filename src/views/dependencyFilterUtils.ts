@@ -1,4 +1,7 @@
-import type { DependencyRecord } from "../models/dependency";
+import type {
+  DependencyRecord,
+  PackageManifestRecord
+} from "../models/dependency";
 
 // 筛选逻辑单独抽到这里，是为了让 Tree View 层只专注于“怎么渲染树”，
 // 而把“哪些依赖应该显示”变成可单测的纯函数。
@@ -41,6 +44,19 @@ export function filterDependencies(
   });
 }
 
+export function filterDependenciesByPackageScope(
+  dependencies: DependencyRecord[],
+  packageScopeId?: string
+): DependencyRecord[] {
+  if (!packageScopeId) {
+    return dependencies;
+  }
+
+  return dependencies.filter(
+    (dependency) => dependency.packageManifest.id === packageScopeId
+  );
+}
+
 export function formatDependencyFilterLabel(
   filterMode: DependencyFilterMode
 ): string {
@@ -73,4 +89,16 @@ export function formatDependencySearchLabel(
 ): string | undefined {
   const trimmedSearchQuery = searchQuery.trim();
   return trimmedSearchQuery ? `Search: ${trimmedSearchQuery}` : undefined;
+}
+
+export function formatDependencyPackageScopeLabel(
+  packageManifest?: PackageManifestRecord
+): string | undefined {
+  if (!packageManifest) {
+    return undefined;
+  }
+
+  return packageManifest.isWorkspaceRootPackage
+    ? `Package: ${packageManifest.displayName} (root)`
+    : `Package: ${packageManifest.displayName}`;
 }

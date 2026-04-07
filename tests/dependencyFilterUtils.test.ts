@@ -4,11 +4,15 @@ import { test } from "node:test";
 import type { DependencyRecord, PackageManifestRecord } from "../src/models/dependency";
 import {
   filterDependencies,
+  filterDependenciesByPackageScope,
   formatDependencyFilterLabel,
+  formatDependencyPackageScopeLabel,
   formatDependencySearchLabel
 } from "../src/views/dependencyFilterUtils";
 
-function createManifest(): PackageManifestRecord {
+function createManifest(
+  overrides?: Partial<PackageManifestRecord>
+): PackageManifestRecord {
   return {
     id: "file:///repo/package.json",
     workspaceFolderName: "workspace",
@@ -17,7 +21,8 @@ function createManifest(): PackageManifestRecord {
     packageDirPath: "/repo",
     displayName: "workspace",
     relativeDirPath: ".",
-    isWorkspaceRootPackage: true
+    isWorkspaceRootPackage: true,
+    ...overrides
   };
 }
 
@@ -124,6 +129,32 @@ test("filterDependencies can combine status filtering and search", () => {
   );
 });
 
+test("filterDependenciesByPackageScope returns only dependencies from the selected package", () => {
+  const rootManifest = createManifest();
+  const webManifest = createManifest({
+    id: "file:///repo/packages/web/package.json",
+    packageJsonPath: "/repo/packages/web/package.json",
+    packageDirPath: "/repo/packages/web",
+    displayName: "@repo/web",
+    relativeDirPath: "packages/web",
+    isWorkspaceRootPackage: false
+  });
+  const dependencies = [
+    createDependency("react", "outdated", { packageManifest: webManifest }),
+    createDependency("typescript", "upToDate", { packageManifest: rootManifest })
+  ];
+
+  const filteredDependencies = filterDependenciesByPackageScope(
+    dependencies,
+    rootManifest.id
+  );
+
+  assert.deepEqual(
+    filteredDependencies.map((dependency) => dependency.name),
+    ["typescript"]
+  );
+});
+
 test("filterDependencies applies search case-insensitively", () => {
   const dependencies = [
     createDependency("ReactQuery", "outdated"),
@@ -151,4 +182,21 @@ test("formatDependencyFilterLabel returns a user-friendly label", () => {
 test("formatDependencySearchLabel returns a trimmed user-friendly label", () => {
   assert.equal(formatDependencySearchLabel("  react  "), "Search: react");
   assert.equal(formatDependencySearchLabel("   "), undefined);
+});
+
+test("formatDependencyPackageScopeLabel returns a user-friendly label", () => {
+  assert.equal(
+    formatDependencyPackageScopeLabel(createManifest({ displayName: "fixture-root" })),
+    "Package: fixture-root (root)"
+  );
+  assert.equal(
+    formatDependencyPackageScopeLabel(
+      createManifest({
+        displayName: "@fixture/web",
+        relativeDirPath: "packages/web",
+        isWorkspaceRootPackage: false
+      })
+    ),
+    "Package: @fixture/web"
+  );
 });

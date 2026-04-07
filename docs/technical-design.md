@@ -114,7 +114,7 @@ package-vision/
 - 扩展激活入口
 - 创建 Tree View
 - 注册命令
-- 同步视图标题栏状态，例如筛选标签和搜索关键词
+- 同步视图标题栏状态，例如 package scope、筛选标签和搜索关键词
 
 不要负责：
 
@@ -190,6 +190,7 @@ package-vision/
 - 生成默认展示目标版本
 - 组装大版本升级时的候选操作
 - 计算当前可见依赖中的批量保守升级候选集
+- 复用“当前可见依赖”语义，让批量升级天然遵守 package scope、筛选和搜索
 
 ### 5.10 `configuration.ts`
 
@@ -212,6 +213,7 @@ package-vision/
 
 - 将依赖数据转换成 Tree Item
 - 管理刷新
+- 管理 package scope 状态
 - 管理筛选状态
 - 管理搜索状态
 - 提供空状态提示
@@ -223,8 +225,8 @@ package-vision/
 
 负责：
 
-- 根据依赖状态和搜索关键词做快速筛选
-- 输出筛选标签文案
+- 根据 package scope、依赖状态和搜索关键词做快速筛选
+- 输出 scope、筛选和搜索标签文案
 
 ## 6. 数据模型
 
@@ -265,7 +267,7 @@ export interface DependencyRecord {
 4. 解析依赖列表
 5. 查询每个依赖的最新版本
 6. 在 monorepo 场景下补充版本分裂分析
-7. 根据当前筛选条件和搜索关键词过滤结果
+7. 根据当前 package scope、筛选条件和搜索关键词过滤结果
 8. Tree View 渲染结果
 9. 用户点击单包升级，或执行批量保守升级
 10. 执行包管理器命令
@@ -334,6 +336,13 @@ export interface DependencyRecord {
 - `Dev Dependencies`
   - `typescript`
 
+当用户选中了某个 package scope：
+
+- `Dependencies`
+  - `react`
+- `Dev Dependencies`
+  - `vite`
+
 ### 9.2 Tree Item 展示策略
 
 package 项：
@@ -360,6 +369,8 @@ package 项：
 - `packageVision.refresh`
 - `packageVision.setFilter`
 - `packageVision.clearFilter`
+- `packageVision.setPackageScope`
+- `packageVision.clearPackageScope`
 - `packageVision.setSearch`
 - `packageVision.clearSearch`
 - `packageVision.upgradeDependency`
@@ -390,6 +401,18 @@ package 项：
 
 注意：当前实现已经通过配置项统一最终写回到 `package.json` 的版本范围，并在必要时再次执行安装同步锁文件。
 
+### 10.3 批量升级的范围控制
+
+当前批量保守升级不会自己重建一套筛选逻辑，而是直接复用：
+
+- `DependencyTreeProvider.getVisibleDependencies()`
+
+这样做的结果是：
+
+- 批量升级天然遵守当前 package scope、筛选和搜索条件
+- 视图里看到什么，批量升级就只处理什么
+- 不容易出现“列表显示的是 A，实际批量处理的是 B”的体验问题
+
 ## 11. 最新版本获取策略
 
 当前实现直接查询 npm registry，而不是调用 `npm outdated`：
@@ -417,6 +440,7 @@ package 项：
 - 包管理器未安装
 - 升级命令执行失败
 - 当前筛选条件下没有匹配依赖
+- 当前 package scope 对应的 package 已不在工作区中
 
 ## 13. 测试策略
 
@@ -436,6 +460,6 @@ package 项：
 
 - 用 `@vscode/test-electron` 启动专门的 VS Code 实例
 - 用 Mocha 运行 `src/test/suite/*.test.ts`
-- 用 fixture 工作区验证扩展命令、工作区扫描、搜索、版本分裂和 Tree View 主链路
+- 用 fixture 工作区验证扩展命令、工作区扫描、package scope、搜索、版本分裂和 Tree View 主链路
 
 这层测试更慢，但能覆盖“扩展是否真的在 VS Code 里按预期工作”。

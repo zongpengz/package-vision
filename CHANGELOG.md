@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added a package-scope view filter for monorepo workspaces so you can focus on the root package or a specific workspace package.
+
 ## 0.2.0
 
 - Added dependency search that works together with the existing status filters.
