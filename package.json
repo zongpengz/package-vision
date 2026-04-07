@@ -1,7 +1,7 @@
 {
   "name": "package-vision",
   "displayName": "Package Vision",
-  "description": "Inspect dependency versions, filter outdated packages, and upgrade them from the VS Code sidebar.",
+  "description": "See current and latest dependency versions, find outdated npm, pnpm, yarn, and bun packages, and upgrade them from the VS Code sidebar.",
   "version": "0.1.0",
   "publisher": "zongpengz",
   "license": "MIT",
@@ -24,14 +24,17 @@
     "package.json",
     "dependency",
     "dependencies",
+    "dependency update",
+    "dependency upgrade",
+    "dependency version",
     "outdated",
+    "outdated packages",
     "npm",
     "pnpm",
     "yarn",
     "bun",
     "monorepo",
-    "versions",
-    "upgrades"
+    "frontend"
   ],
   "icon": "resources/marketplace-icon.png",
   "galleryBanner": {
