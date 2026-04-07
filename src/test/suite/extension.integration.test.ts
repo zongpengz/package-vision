@@ -114,6 +114,40 @@ suite("Package Vision Extension Host", () => {
     assert.equal(emptyStateItem.description, "Filter: Lookup Failed");
   });
 
+  test("detects version drift across package manifests and can filter it", async () => {
+    const treeProvider = new DependencyTreeProvider(
+      new PackageJsonService(),
+      createStubRegistryService()
+    );
+    treeProvider.setFilterMode("versionDrift");
+
+    const topLevelNodes = await treeProvider.getChildren();
+    const topLevelLabels = topLevelNodes.map((node) =>
+      getTreeItemLabel(treeProvider.getTreeItem(node))
+    );
+
+    assert.deepEqual(topLevelLabels, ["fixture-root", "@fixture/api"]);
+
+    const rootPackageNode = topLevelNodes.find(
+      (node) => getTreeItemLabel(treeProvider.getTreeItem(node)) === "fixture-root"
+    );
+    assert.ok(rootPackageNode);
+
+    const sectionNodes = await treeProvider.getChildren(rootPackageNode);
+    const dependencyNodes = await treeProvider.getChildren(sectionNodes[0]);
+    assert.deepEqual(
+      dependencyNodes.map((node) => getTreeItemLabel(treeProvider.getTreeItem(node))),
+      ["shared-lib"]
+    );
+
+    const dependencyItem = treeProvider.getTreeItem(dependencyNodes[0]);
+    assert.match(String(dependencyItem.description), /drift/);
+
+    const tooltip = dependencyItem.tooltip as vscode.MarkdownString;
+    assert.match(tooltip.value, /Version drift detected across the workspace:/);
+    assert.match(tooltip.value, /shared-lib/);
+  });
+
   test("combines search with the current filter before rendering the tree", async () => {
     const treeProvider = new DependencyTreeProvider(
       new PackageJsonService(),

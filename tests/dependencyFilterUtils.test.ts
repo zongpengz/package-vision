@@ -23,7 +23,8 @@ function createManifest(): PackageManifestRecord {
 
 function createDependency(
   name: string,
-  status: DependencyRecord["status"]
+  status: DependencyRecord["status"],
+  options?: Partial<DependencyRecord>
 ): DependencyRecord {
   return {
     name,
@@ -31,6 +32,8 @@ function createDependency(
     declaredVersion: "^1.0.0",
     packageManifest: createManifest(),
     status
+    ,
+    ...options
   };
 }
 
@@ -83,6 +86,24 @@ test("filterDependencies can isolate upgrading dependencies", () => {
   );
 });
 
+test("filterDependencies can isolate version drift", () => {
+  const dependencies = [
+    createDependency("react", "outdated", { hasVersionDrift: true }),
+    createDependency("zod", "upToDate")
+  ];
+
+  const filteredDependencies = filterDependencies(
+    dependencies,
+    "versionDrift",
+    () => false
+  );
+
+  assert.deepEqual(
+    filteredDependencies.map((dependency) => dependency.name),
+    ["react"]
+  );
+});
+
 test("filterDependencies can combine status filtering and search", () => {
   const dependencies = [
     createDependency("react", "outdated"),
@@ -124,6 +145,7 @@ test("filterDependencies applies search case-insensitively", () => {
 
 test("formatDependencyFilterLabel returns a user-friendly label", () => {
   assert.equal(formatDependencyFilterLabel("error"), "Lookup Failed");
+  assert.equal(formatDependencyFilterLabel("versionDrift"), "Version Drift");
 });
 
 test("formatDependencySearchLabel returns a trimmed user-friendly label", () => {

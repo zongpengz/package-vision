@@ -533,6 +533,7 @@ function buildFilterQuickPickItems(currentFilterMode: DependencyFilterMode): Arr
     "upToDate",
     "error",
     "unknown",
+    "versionDrift",
     "upgrading"
   ];
 

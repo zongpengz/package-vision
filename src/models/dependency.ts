@@ -5,6 +5,13 @@ export type DependencySection = "dependencies" | "devDependencies";
 
 export type DependencyStatus = "unknown" | "upToDate" | "outdated" | "error";
 
+export interface DependencyVersionDriftEntry {
+  packageDisplayName: string;
+  relativeDirPath: string;
+  section: DependencySection;
+  declaredVersion: string;
+}
+
 export interface PackageManifestRecord {
   // id 用来唯一标识一个 package.json；这里直接复用了 URI 字符串，
   // 对 monorepo 场景已经足够稳定，也不需要再额外生成随机 ID。
@@ -33,6 +40,8 @@ export interface DependencyRecord {
   latestVersion?: string;
   latestSafeVersion?: string;
   hasMajorUpdate?: boolean;
+  hasVersionDrift?: boolean;
+  versionDriftEntries?: DependencyVersionDriftEntry[];
   status: DependencyStatus;
   errorMessage?: string;
 }

@@ -7,6 +7,7 @@ import type {
   DependencyStatus
 } from "../models/dependency";
 import type { PackageJsonService } from "../services/packageJsonService";
+import { annotateVersionDrift } from "../services/dependencyAnalysisUtils";
 import { getComparableDeclaredVersion } from "../services/registryUtils";
 import type { RegistryService } from "../services/registryService";
 import { getDefaultDisplayTargetVersion } from "../services/upgradeStrategyUtils";
@@ -195,9 +196,11 @@ export class DependencyTreeProvider
       ];
     }
 
+    const analyzedDependencies = annotateVersionDrift(dependencies);
+
     // 先读本地 package.json，再补充 npm registry 的最新版本信息。
     const enrichedDependencies =
-      await this.registryService.enrichDependencies(dependencies);
+      await this.registryService.enrichDependencies(analyzedDependencies);
     const visibleDependencies = filterDependencies(
       enrichedDependencies,
       this.filterMode,
@@ -289,6 +292,9 @@ class PackageManifestItem extends vscode.TreeItem {
     const outdatedCount = dependencies.filter(
       (dependency) => dependency.status === "outdated"
     ).length;
+    const driftCount = dependencies.filter(
+      (dependency) => dependency.hasVersionDrift
+    ).length;
 
     this.description =
       packageManifest.relativeDirPath === "."
@@ -298,7 +304,8 @@ class PackageManifestItem extends vscode.TreeItem {
     this.tooltip = [
       `Package: ${packageManifest.displayName}`,
       `Location: ${packageManifest.relativeDirPath}`,
-      `${outdatedCount} outdated`
+      `${outdatedCount} outdated`,
+      `${driftCount} drift`
     ].join(" • ");
   }
 }
@@ -318,6 +325,9 @@ class DependencySectionItem extends vscode.TreeItem {
     const outdatedCount = dependencies.filter(
       (dependency) => dependency.status === "outdated"
     ).length;
+    const driftCount = dependencies.filter(
+      (dependency) => dependency.hasVersionDrift
+    ).length;
 
     // Tree View 分组标题本身没有可靠的“加粗”能力，所以这里用图标、颜色和更明确的摘要文案
     // 来拉开 Dependencies / Dev Dependencies 的视觉差异。
@@ -326,6 +336,7 @@ class DependencySectionItem extends vscode.TreeItem {
       section,
       dependencies.length,
       outdatedCount,
+      driftCount,
       upgradingCount
     );
     this.contextValue = "dependencySection";
@@ -334,6 +345,7 @@ class DependencySectionItem extends vscode.TreeItem {
       `Type: ${formatSectionKindLabel(section)}`,
       `${dependencies.length} total`,
       `${outdatedCount} outdated`,
+      `${driftCount} drift`,
       `${upgradingCount} upgrading`
     ].join(" • ");
   }
@@ -395,6 +407,7 @@ function formatSectionDescription(
   section: DependencySection,
   total: number,
   outdatedCount: number,
+  driftCount: number,
   upgradingCount: number
 ): string {
   const parts: string[] = [formatSectionKindLabel(section)];
@@ -405,6 +418,10 @@ function formatSectionDescription(
 
   if (outdatedCount > 0) {
     parts.push(`${outdatedCount} outdated`);
+  }
+
+  if (driftCount > 0) {
+    parts.push(`${driftCount} drift`);
   }
 
   if (parts.length === 0) {
@@ -432,14 +449,20 @@ function formatDependencyDescription(
   }
 
   if (displayTargetVersion) {
-    return `${dependency.declaredVersion} -> ${displayTargetVersion}`;
+    return dependency.hasVersionDrift
+      ? `${dependency.declaredVersion} -> ${displayTargetVersion} • drift`
+      : `${dependency.declaredVersion} -> ${displayTargetVersion}`;
   }
 
   if (dependency.latestVersion) {
-    return `${dependency.declaredVersion} -> ${dependency.latestVersion}`;
+    return dependency.hasVersionDrift
+      ? `${dependency.declaredVersion} -> ${dependency.latestVersion} • drift`
+      : `${dependency.declaredVersion} -> ${dependency.latestVersion}`;
   }
 
-  return `${dependency.declaredVersion} -> unavailable`;
+  return dependency.hasVersionDrift
+    ? `${dependency.declaredVersion} -> unavailable • drift`
+    : `${dependency.declaredVersion} -> unavailable`;
 }
 
 function buildDependencyTooltipLines(
@@ -461,6 +484,16 @@ function buildDependencyTooltipLines(
 
   if (dependency.errorMessage) {
     lines.push(`Issue: ${dependency.errorMessage}`);
+  }
+
+  if (dependency.hasVersionDrift && dependency.versionDriftEntries) {
+    lines.push("");
+    lines.push("Version drift detected across the workspace:");
+    lines.push(
+      ...dependency.versionDriftEntries.map((entry) =>
+        `- \`${entry.packageDisplayName}\` (${entry.section}) at \`${entry.relativeDirPath}\`: \`${entry.declaredVersion}\``
+      )
+    );
   }
 
   const safeUpgradeTarget = dependency.latestSafeVersion;

@@ -8,6 +8,7 @@ export type DependencyFilterMode =
   | "upToDate"
   | "error"
   | "unknown"
+  | "versionDrift"
   | "upgrading";
 
 export function filterDependencies(
@@ -24,6 +25,8 @@ export function filterDependencies(
         ? true
         : filterMode === "upgrading"
           ? isDependencyUpgrading(dependency)
+          : filterMode === "versionDrift"
+            ? dependency.hasVersionDrift === true
           : dependency.status === filterMode;
 
     if (!matchesFilter) {
@@ -53,6 +56,8 @@ export function formatDependencyFilterLabel(
       return "Unable To Compare";
     case "upgrading":
       return "Upgrading";
+    case "versionDrift":
+      return "Version Drift";
     case "all":
     default:
       return "All";
