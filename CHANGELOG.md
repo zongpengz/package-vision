@@ -1,11 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 - Added dependency search that works together with the existing status filters.
 - Added monorepo version drift detection for the same dependency across multiple package manifests.
 - Added bulk safe upgrades for the currently visible dependency list.
-- Expanded docs and release planning for the upcoming `0.2.0` release.
+- Expanded docs and release planning for the `0.2.0` release.
 
 ## 0.1.0
 

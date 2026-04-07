@@ -8,8 +8,8 @@
 
 ## 当前发布状态
 
-- 最新发布版本：`0.1.0`
-- 发布时间：`2026-04-04`
+- 最新发布版本：`0.2.0`
+- 发布时间：`2026-04-07`
 - 扩展 ID：`zongpengz.package-vision`
 - Marketplace 页面：
   - https://marketplace.visualstudio.com/items?itemName=zongpengz.package-vision
@@ -20,16 +20,16 @@
 
 ## 当前主干状态
 
-当前仓库主干已经完成下一版 `0.2.0` 的 3 个 P0：
+当前仓库主干与 `0.2.0` 发布版本已经对齐，核心新增能力包括：
 
 - 依赖搜索与组合筛选
 - monorepo 版本分裂检测
 - 批量保守升级
 
-这些能力已经进入代码、测试和 README，但还没有发布到 Marketplace。也就是说：
+说明：
 
-- Marketplace 最新发布仍然是 `0.1.0`
-- GitHub 主干已经在为 `0.2.0` 做发布准备
+- `vsce publish` 已经返回 `Published zongpengz.package-vision v0.2.0`
+- Marketplace 页面和 `vsce show` 在短时间内可能仍显示旧版本，这是传播延迟，不代表发布失败
 
 ## 当前已就绪内容
 
@@ -48,7 +48,7 @@
 
 - 扩展名：`Package Vision`
 - 扩展 ID：`zongpengz.package-vision`
-- 当前版本：`0.1.0`
+- 当前版本：`0.2.0`
 - 短描述：
   - `See current and latest dependency versions, find outdated npm, pnpm, yarn, and bun packages, and upgrade them from the VS Code sidebar.`
 - 分类：
@@ -74,9 +74,9 @@
 
 - 截图在 Marketplace 页面里的展示顺序是否满意
 - README 首页是否足够像插件介绍页，而不是仓库维护说明
-- 下一次发布是否直接提升到 `0.2.0`
+- 下一次发布是继续走 `patch`、进入 `0.2.1`，还是开始准备 `0.3.0`
 - `CHANGELOG.md` 是否和这次发布内容一致
-- `0.2.0` 是否要突出“搜索、版本分裂、批量保守升级”这 3 个卖点
+- `0.2.0` 的商店文案是否足够突出“搜索、版本分裂、批量保守升级”这 3 个卖点
 
 ## 发布流程
 
