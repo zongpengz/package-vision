@@ -18,6 +18,19 @@
 
 我在本地用 `vsce show zongpengz.package-vision` 做过发布后核对，CLI 已经能读取到这条扩展记录。
 
+## 当前主干状态
+
+当前仓库主干已经完成下一版 `0.2.0` 的 3 个 P0：
+
+- 依赖搜索与组合筛选
+- monorepo 版本分裂检测
+- 批量保守升级
+
+这些能力已经进入代码、测试和 README，但还没有发布到 Marketplace。也就是说：
+
+- Marketplace 最新发布仍然是 `0.1.0`
+- GitHub 主干已经在为 `0.2.0` 做发布准备
+
 ## 当前已就绪内容
 
 - 已配置 `publisher`、`repository`、`homepage`、`bugs`、`license`
@@ -37,7 +50,7 @@
 - 扩展 ID：`zongpengz.package-vision`
 - 当前版本：`0.1.0`
 - 短描述：
-  - `Inspect dependency versions, filter outdated packages, and upgrade them from the VS Code sidebar.`
+  - `See current and latest dependency versions, find outdated npm, pnpm, yarn, and bun packages, and upgrade them from the VS Code sidebar.`
 - 分类：
   - `Other`
   - `Visualization`
@@ -45,21 +58,25 @@
   - `package.json`
   - `dependency`
   - `dependencies`
+  - `dependency update`
+  - `dependency upgrade`
+  - `dependency version`
   - `outdated`
+  - `outdated packages`
   - `npm`
   - `pnpm`
   - `yarn`
   - `bun`
   - `monorepo`
-  - `versions`
-  - `upgrades`
+  - `frontend`
 
 ## 发布后仍值得优化的事项
 
 - 截图在 Marketplace 页面里的展示顺序是否满意
 - README 首页是否足够像插件介绍页，而不是仓库维护说明
-- 下一次发布是继续走 `patch` 还是提升到 `0.2.0`
+- 下一次发布是否直接提升到 `0.2.0`
 - `CHANGELOG.md` 是否和这次发布内容一致
+- `0.2.0` 是否要突出“搜索、版本分裂、批量保守升级”这 3 个卖点
 
 ## 发布流程
 

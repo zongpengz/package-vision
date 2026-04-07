@@ -17,9 +17,10 @@
 3. `src/views/dependencyTreeProvider.ts`
 4. `src/services/packageJsonService.ts`
 5. `src/services/registryService.ts`
-6. `src/services/packageManagerService.ts`
-7. `src/services/packageManagerCore.ts`
-8. `src/test/runTest.ts` 和 `src/test/suite/extension.integration.test.ts`
+6. `src/services/dependencyAnalysisUtils.ts`
+7. `src/services/packageManagerService.ts`
+8. `src/services/packageManagerCore.ts`
+9. `src/test/runTest.ts` 和 `src/test/suite/extension.integration.test.ts`
 
 这个顺序的好处是：
 
@@ -42,6 +43,7 @@ package-vision/
     marketplace-release-checklist.md
     product-requirements.md
     project-retrospective.md
+    release-0.2.0-plan.md
     technical-design.md
     testing-and-validation.md
     images/
@@ -57,6 +59,7 @@ package-vision/
     models/
       dependency.ts
     services/
+      dependencyAnalysisUtils.ts
       packageJsonService.ts
       packageManifestUtils.ts
       packageManagerCore.ts
@@ -76,6 +79,7 @@ package-vision/
       dependencyFilterUtils.ts
       dependencyTreeProvider.ts
   tests/
+    dependencyAnalysisUtils.test.ts
     dependencyFilterUtils.test.ts
     packageManagerCore.test.ts
     packageManifestUtils.test.ts
@@ -154,6 +158,8 @@ package-vision/
 - 本地文件读取
   - `packageJsonService.ts`
   - `packageManifestUtils.ts`
+- 跨 package 分析
+  - `dependencyAnalysisUtils.ts`
 - 在线版本信息
   - `registryService.ts`
   - `registryUtils.ts`
@@ -186,7 +192,7 @@ package-vision/
 
 - `dependencyFilterUtils.ts`
 
-负责和筛选相关的纯逻辑。
+负责和筛选、搜索相关的纯逻辑。
 
 ### `src/test/`
 
@@ -230,6 +236,13 @@ package-vision/
 9. `PackageManagerService` 识别包管理器并执行命令
 10. `PackageJsonService` 负责必要时写回 `package.json`
 11. Tree View 刷新，显示新的状态
+
+如果你想理解 `0.2.0` 增加的 monorepo 版本分裂能力，可以重点顺着这条链路看：
+
+1. `src/services/packageJsonService.ts`
+2. `src/services/dependencyAnalysisUtils.ts`
+3. `src/views/dependencyTreeProvider.ts`
+4. `src/views/dependencyFilterUtils.ts`
 
 ## 7. 你读代码时最该关注什么
 

@@ -44,6 +44,7 @@
 flowchart LR
   A["Activity Bar: Package Vision"] --> B["DependencyTreeProvider"]
   B --> C["PackageJsonService"]
+  B --> K["dependencyAnalysisUtils"]
   B --> D["RegistryService"]
   B --> E["dependencyFilterUtils"]
   A --> F["extension.ts commands"]
@@ -64,6 +65,7 @@ package-vision/
     models/
       dependency.ts
     services/
+      dependencyAnalysisUtils.ts
       packageJsonService.ts
       packageManifestUtils.ts
       registryService.ts
@@ -76,6 +78,7 @@ package-vision/
       dependencyTreeProvider.ts
       dependencyFilterUtils.ts
   tests/
+    dependencyAnalysisUtils.test.ts
     dependencyFilterUtils.test.ts
     packageManagerCore.test.ts
     packageManifestUtils.test.ts
@@ -91,7 +94,11 @@ package-vision/
   resources/
     package-vision.svg
   docs/
+    codebase-guide.md
+    marketplace-publishing.md
+    marketplace-release-checklist.md
     product-requirements.md
+    release-0.2.0-plan.md
     technical-design.md
     development-workflow.md
     testing-and-validation.md
@@ -107,7 +114,7 @@ package-vision/
 - 扩展激活入口
 - 创建 Tree View
 - 注册命令
-- 同步视图标题栏状态，例如筛选标签
+- 同步视图标题栏状态，例如筛选标签和搜索关键词
 
 不要负责：
 
@@ -140,14 +147,22 @@ package-vision/
 - 处理请求失败、超时、缓存
 - 控制并发，避免瞬间打出过多请求
 
-### 5.5 `registryUtils.ts`
+### 5.5 `dependencyAnalysisUtils.ts`
+
+负责：
+
+- 在多个 package manifest 之间聚合同名依赖
+- 识别声明版本是否出现版本分裂
+- 给依赖补上可供视图层使用的 drift 元信息
+
+### 5.6 `registryUtils.ts`
 
 负责：
 
 - 计算依赖是 `upToDate`、`outdated` 还是 `unknown`
 - 抽出与 semver 相关的纯逻辑，方便测试
 
-### 5.6 `packageManagerService.ts`
+### 5.7 `packageManagerService.ts`
 
 负责：
 
@@ -158,7 +173,7 @@ package-vision/
 - 触发锁文件同步
 - 输出日志
 
-### 5.7 `packageManagerCore.ts`
+### 5.8 `packageManagerCore.ts`
 
 负责：
 
@@ -167,22 +182,23 @@ package-vision/
 - 根据目标版本生成明确的升级命令
 - 处理 monorepo / workspace 路径相关纯逻辑
 
-### 5.8 `upgradeStrategyUtils.ts`
+### 5.9 `upgradeStrategyUtils.ts`
 
 负责：
 
 - 计算“当前 major 内可安全升级到哪个版本”
 - 生成默认展示目标版本
 - 组装大版本升级时的候选操作
+- 计算当前可见依赖中的批量保守升级候选集
 
-### 5.9 `configuration.ts`
+### 5.10 `configuration.ts`
 
 负责：
 
 - 读取 VS Code 配置项
 - 为升级逻辑提供大版本升级策略和版本范围策略
 
-### 5.10 `versionRangeUtils.ts`
+### 5.11 `versionRangeUtils.ts`
 
 负责：
 
@@ -190,22 +206,24 @@ package-vision/
 - 根据配置项生成新的版本范围
 - 处理 `preserve / caret / tilde / exact`
 
-### 5.11 `dependencyTreeProvider.ts`
+### 5.12 `dependencyTreeProvider.ts`
 
 负责：
 
 - 将依赖数据转换成 Tree Item
 - 管理刷新
 - 管理筛选状态
+- 管理搜索状态
 - 提供空状态提示
 - 为过时依赖提供悬浮行内操作
+- 提供“当前可见依赖”给批量升级命令复用
 - 与命令层联动
 
-### 5.12 `dependencyFilterUtils.ts`
+### 5.13 `dependencyFilterUtils.ts`
 
 负责：
 
-- 根据依赖状态做快速筛选
+- 根据依赖状态和搜索关键词做快速筛选
 - 输出筛选标签文案
 
 ## 6. 数据模型
@@ -229,6 +247,7 @@ export interface DependencyRecord {
   latestVersion?: string;
   latestSafeVersion?: string;
   hasMajorUpdate?: boolean;
+  hasVersionDrift?: boolean;
   status: "unknown" | "upToDate" | "outdated" | "error";
   errorMessage?: string;
 }
@@ -245,12 +264,13 @@ export interface DependencyRecord {
 3. 扩展扫描工作区中的 `package.json`
 4. 解析依赖列表
 5. 查询每个依赖的最新版本
-6. 根据当前筛选条件过滤结果
-7. Tree View 渲染结果
-8. 用户点击“升级”
-9. 执行包管理器命令
-10. 按设置项改写版本范围并同步锁文件
-11. 成功后刷新视图
+6. 在 monorepo 场景下补充版本分裂分析
+7. 根据当前筛选条件和搜索关键词过滤结果
+8. Tree View 渲染结果
+9. 用户点击单包升级，或执行批量保守升级
+10. 执行包管理器命令
+11. 按设置项改写版本范围并同步锁文件
+12. 成功后刷新视图
 
 ## 8. 扩展清单中的关键贡献点
 
@@ -272,7 +292,7 @@ export interface DependencyRecord {
 
 ### 8.3 命令
 
-用于刷新、筛选、升级、打开 `package.json`、查看输出等操作。
+用于刷新、筛选、搜索、批量保守升级、打开 `package.json`、查看输出等操作。
 
 ### 8.4 菜单
 
@@ -324,13 +344,13 @@ package 项：
 分组项：
 
 - `label` 使用分组名
-- `description` 展示总量、过时数量或升级中数量
+- `description` 展示总量、过时数量、版本分裂数量或升级中数量
 
 依赖项：
 
 - `label`：包名
 - `description`：声明版本和当前默认升级目标，例如 `^2.0.0 -> 2.5.4`
-- `tooltip`：显示 package、位置、状态、默认升级目标，以及更高 major 可用提示
+- `tooltip`：显示 package、位置、状态、默认升级目标、版本分裂详情，以及更高 major 可用提示
 - `iconPath`：使用彩色状态图标区分已最新、过时、失败和升级中
 
 ### 9.3 命令建议
@@ -340,8 +360,11 @@ package 项：
 - `packageVision.refresh`
 - `packageVision.setFilter`
 - `packageVision.clearFilter`
+- `packageVision.setSearch`
+- `packageVision.clearSearch`
 - `packageVision.upgradeDependency`
 - `packageVision.upgradeDependencyToLatestMajor`
+- `packageVision.upgradeSafeDependencies`
 - `packageVision.openPackageJson`
 - `packageVision.showOutput`
 
@@ -401,7 +424,7 @@ package 项：
 
 ### 13.1 纯逻辑单元测试
 
-- 把包管理器命令构造、版本范围处理、筛选逻辑、大版本升级策略拆成纯函数
+- 把包管理器命令构造、版本范围处理、筛选逻辑、大版本升级策略、版本分裂分析和批量升级候选集拆成纯函数
 - 用 `tsx --test` 跑单元测试
 - 用 `npm run lint` 做静态规则检查
 - 用 `npm run typecheck` 做 TypeScript 类型检查
@@ -413,6 +436,6 @@ package 项：
 
 - 用 `@vscode/test-electron` 启动专门的 VS Code 实例
 - 用 Mocha 运行 `src/test/suite/*.test.ts`
-- 用 fixture 工作区验证扩展命令、工作区扫描和 Tree View 主链路
+- 用 fixture 工作区验证扩展命令、工作区扫描、搜索、版本分裂和 Tree View 主链路
 
 这层测试更慢，但能覆盖“扩展是否真的在 VS Code 里按预期工作”。

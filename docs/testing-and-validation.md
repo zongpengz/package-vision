@@ -25,10 +25,12 @@
 
 - 版本状态判断，例如 `upToDate` / `outdated` / `unknown`
 - 大版本升级策略和安全目标推导
+- 批量保守升级候选集选择逻辑
 - package manifest 的组装和依赖展开
+- monorepo 版本分裂分析
 - monorepo 场景下各个包管理器的升级命令构造
 - 升级后的版本范围写回策略
-- 依赖状态快速筛选逻辑
+- 依赖状态快速筛选和搜索组合逻辑
 
 运行命令：
 
@@ -49,7 +51,9 @@ npm run test:unit
 - 扩展命令是否注册成功
 - 多个 `package.json` 的工作区扫描
 - Tree View 在 monorepo 下的分组渲染
-- 快速筛选在真实 Extension Host 中的结果
+- 快速筛选和搜索在真实 Extension Host 中的结果
+- 版本分裂提示是否在 fixture 工作区里正常出现
+- 当前可见依赖能否产出批量保守升级候选集
 
 运行命令：
 
@@ -155,12 +159,19 @@ package-vision-0.1.0.vsix
 
 这样做的目的是让多 package 扫描、分组渲染和筛选行为有稳定的验证基线。
 
+当前这套 fixture 也包含一个最小的版本分裂场景：
+
+- 根 package 和 `packages/api` 同时声明了 `shared-lib`
+- 但声明版本不同
+
 ## 7. 什么时候该补新测试
 
 建议在这些场景补测试：
 
 - 新增新的筛选模式
+- 新增新的搜索或组合筛选规则
 - 新增新的依赖类型，例如 `peerDependencies`
+- 新增新的跨 package 分析能力
 - 调整包管理器命令构造逻辑
 - 修改版本范围写回策略
 - 修改 Tree View 的层级结构或空状态行为
