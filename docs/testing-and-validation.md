@@ -132,7 +132,7 @@ npx @vscode/vsce package
 打包结果会生成到项目根目录，例如：
 
 ```text
-package-vision-0.2.0.vsix
+package-vision-0.2.1.vsix
 ```
 
 目前仓库也已经补齐了这些打包前必要内容：

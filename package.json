@@ -2,7 +2,7 @@
   "name": "package-vision",
   "displayName": "Package Vision",
   "description": "See current and latest dependency versions, find outdated npm, pnpm, yarn, and bun packages, and upgrade them from the VS Code sidebar.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "zongpengz",
   "license": "MIT",
   "repository": {
